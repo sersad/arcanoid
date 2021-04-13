@@ -57,21 +57,17 @@ class Ball(pygame.sprite.Sprite):
         self.rect = pygame.Rect(x, y, 2 * radius, 2 * radius)
         self.vx = -5
         self.vy = -5
+        self.add(balls)
 
     # движение с проверкой столкновение шара
     def update(self):
-        """
-        TODO: move spritecollide to Brick
-        """
         self.rect = self.rect.move(self.vy, self.vx)
         # self.rect.move_ip(self.vx, self.vy)
         if pygame.sprite.spritecollideany(self, horizontal_borders):
             self.vx = -self.vx
         if pygame.sprite.spritecollideany(self, vertical_borders):
             self.vy = -self.vy
-        if pygame.sprite.spritecollide(self, bricks, True):
-            self.vx = -self.vx
-            sound2.play()
+
         if pygame.sprite.spritecollideany(self, handle):
             self.vx = -self.vx
             sound1.play()
@@ -102,6 +98,12 @@ class Brick(pygame.sprite.Sprite):
         pygame.draw.rect(self.image, color, (1, 1, self.size[0] - 2, self.size[1] - 2))
         self.add(bricks)
 
+    def update(self, *args, **kwargs) -> None:
+        if ball := pygame.sprite.spritecollide(self, balls, False):
+            ball[0].vx = -ball[0].vx
+            sound2.play()
+            self.kill()
+
 
 class Handle(pygame.sprite.Sprite):
     def __init__(self, position: tuple, size: tuple = HANDLE_SIZE, color=YELLOW):
@@ -131,6 +133,8 @@ vertical_borders = pygame.sprite.Group()
 bricks = pygame.sprite.Group()
 # ракетка
 handle = pygame.sprite.Group()
+# Мячи
+balls = pygame.sprite.Group()
 
 Border(5, 5, WIDTH - 5, 5)
 Border(5, HEIGHT - 5, WIDTH - 5, HEIGHT - 5)
