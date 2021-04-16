@@ -11,8 +11,8 @@ WHITE = pygame.Color("white")
 RED = pygame.Color("red")
 YELLOW = pygame.Color("yellow")
 GRAY = pygame.Color("gray")
-BRICK_SIZE = 60, 20
-HANDLE_SIZE = 80, 20
+BRICK_SIZE = 40, 40
+HANDLE_SIZE = 160, 10
 WINDOW_SIZE = WIDTH, HEIGHT = 980, 700
 
 pygame.init()
@@ -20,8 +20,8 @@ pygame.init()
 screen = pygame.display.set_mode(WINDOW_SIZE)
 clock = pygame.time.Clock()
 
-pygame.mixer.music.load('sound/02_-_Arkanoid_-_ARC_-_Game_Start.ogg')
-pygame.mixer.music.play()
+# pygame.mixer.music.load('sound/02_-_Arkanoid_-_ARC_-_Game_Start.ogg')
+# pygame.mixer.music.play()
 
 sound1 = pygame.mixer.Sound('sound/Arkanoid SFX (2).wav')
 sound2 = pygame.mixer.Sound('sound/Arkanoid SFX (1).wav')
@@ -100,7 +100,11 @@ class Brick(pygame.sprite.Sprite):
 
     def update(self, *args, **kwargs) -> None:
         if ball := pygame.sprite.spritecollide(self, balls, False):
-            ball[0].vx = -ball[0].vx
+            for b in ball:
+                b.vx = -b.vx
+                # self.rect.collidepoint()
+                print("brick", self.rect.centerx, self.rect.centery)
+                print("ball", b.rect.centerx, b.rect.centery)
             sound2.play()
             self.kill()
 
@@ -146,6 +150,10 @@ Handle((WIDTH // 2 - 30, HEIGHT - 30))
 
 for w in range(5, WIDTH, BRICK_SIZE[0] + 5):
     for h in range(50, 150, BRICK_SIZE[1] + 5):
+        Brick((w, h))
+
+for w in range(5, 100, BRICK_SIZE[0] + 5):
+    for h in range(150, 600, BRICK_SIZE[1] + 5):
         Brick((w, h))
 
 
