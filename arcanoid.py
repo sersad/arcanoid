@@ -201,11 +201,11 @@ class Handle(Brick):
     h_size = HANDLE_SIZE[1]
 
     def update(self, ticks):
-        if pygame.key.get_pressed()[K_RIGHT] and 0 <= self.position[0] < WIDTH - HANDLE_SIZE[0] - 4:
-            self.position[0] += 500 * ticks / 1000
+        if pygame.key.get_pressed()[K_RIGHT] and self.position[0] < WIDTH - HANDLE_SIZE[0]:
+            self.position[0] += int(500 * ticks / 1000)
 
-        if pygame.key.get_pressed()[K_LEFT] and 4 < self.position[0] <= WIDTH - HANDLE_SIZE[0]:
-            self.position[0] -= 500 * ticks / 1000
+        if pygame.key.get_pressed()[K_LEFT] and self.position[0] >= 0:
+            self.position[0] -= int(500 * ticks / 1000)
 
 
 class Ball:
