@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 import os
 import sys
-from math import radians, sin, cos
-from random import randint, random
-from time import sleep
+from random import randint
 
 import pygame
 import pygame.gfxdraw
 from pygame.locals import *
-
 
 SIZE = WIDTH, HEIGHT = 1024, 768
 BRICK_SIZE = 40, 20
@@ -23,11 +20,21 @@ DARKRED = pygame.Color("darkred")
 GREEN = pygame.Color("green")
 BLUE = pygame.Color("blue")
 YELLOW = pygame.Color("yellow")
+BROWN = pygame.Color("brown")
 MAGENTA = pygame.Color("magenta")
 MAGENTA4 = pygame.Color("magenta4")
+AQUAMARINE = pygame.Color('aquamarine')
+DEEPSKYBLUUE = pygame.Color('deepskyblue')
+DARKORANGE = pygame.Color('darkorange')
 GRAY = pygame.Color("gray")
 DARKGRAY = pygame.Color("darkgray")
-BRICK_COLORS = {0: WHITE, 1: WHITE, 2: GREEN, 3: YELLOW, 4: RED}
+
+BRICK_COLORS = {1: (WHITE, GRAY),
+                2: (GREEN, DEEPSKYBLUUE),
+                3: (YELLOW, DARKORANGE),
+                4: (RED, MAGENTA)}
+
+BALL_COLORS = YELLOW
 
 
 def load_image(name, colorkey=None):
@@ -112,7 +119,7 @@ class World:
                     ball.speed[0] -= 50
 
     def tick(self):
-        self.clock.tick(120)
+        self.clock.tick(60)
 
     def spawn_ball(self):
         position = self.handle.position[:]
@@ -131,7 +138,7 @@ class Brick:
         self.lives = lives
         self.color = BRICK_COLORS[lives]
         # пока не нужно
-        self.rect = pygame.Rect(*self.position, BRICK_SIZE[0], BRICK_SIZE[1])
+        # self.rect = pygame.Rect(*self.position, BRICK_SIZE[0], BRICK_SIZE[1])
 
     def draw(self, screen):
         self.color = BRICK_COLORS[self.lives]
@@ -140,33 +147,27 @@ class Brick:
         # pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), self.color)
 
         colour_rect = pygame.Surface((2, 2))  # tiny! 2x2 bitmap
-        pygame.draw.line(colour_rect, MAGENTA, (0, 0), (0, 1))  # left colour line
-        pygame.draw.line(colour_rect, self.color, (1, 0), (1, 1))
+        pygame.draw.line(colour_rect, self.color[1], (0, 0), (0, 1))  # left colour line
+        pygame.draw.line(colour_rect, self.color[0], (1, 0), (1, 1))
         colour_rect = pygame.transform.smoothscale(colour_rect, (self.w_size, self.h_size))
         screen.blit(colour_rect, self.position)
 
-        # if randint(0, 1) and self.lives > 1:
-        #         pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), self.color.correct_gamma(randint(0, 255)))
-        # if self.lives > 3:
-        #     pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), self.color.correct_gamma(randint(0, 100)))
-        #     pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), self.color.correct_gamma(randint(0, 100)))
-        #     if randint(0, 1):
-        #         pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), DARKRED)
-
-    def gradientRect(window, left_colour, right_colour, target_rect):
-        """ Draw a horizontal-gradient filled rectangle covering <target_rect> """
-        colour_rect = pygame.Surface((2, 2))  # tiny! 2x2 bitmap
-        pygame.draw.line(colour_rect, left_colour, (0, 0), (0, 1))  # left colour line
-        pygame.draw.line(colour_rect, right_colour, (1, 0), (1, 1))  # right colour line
-        colour_rect = pygame.transform.smoothscale(colour_rect, (target_rect.width, target_rect.height))  # stretch!
-        window.blit(colour_rect, target_rect)
-
-
     def draw_destroy(self, screen):
-        self.color = BRICK_COLORS[self.lives]
-        pygame.gfxdraw.box(screen, pygame.Rect((self.position[0] + 1, self.position[1] + 1),
-                                               (self.w_size + 1, self.h_size + 1)), MAGENTA4)
-        pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), MAGENTA)
+        """
+        Эффект уменьшения жизней у блока или его смерти.
+        Если жизнь просто уменьшилась, отрисовывается рамка старого цвета вокруг блока
+        Если смерть то отрисовывается красный цвет.
+        :param screen:
+        :return:
+        """
+        if self.lives < 1:
+            pygame.gfxdraw.box(screen, pygame.Rect((self.position[0] - 10, self.position[1] - 10),
+                                                   (self.w_size + 20, self.h_size + 20)), RED)
+            pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), BLUE)
+        else:
+            pygame.gfxdraw.box(screen, pygame.Rect((self.position[0] - 10, self.position[1] - 10),
+                                                   (self.w_size + 20, self.h_size + 20)), self.color[1])
+            pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), BLUE)
 
     def is_inside_hbounds(self, x):
         left_bound = self.position[0] - BALL_RADIUS
@@ -208,17 +209,15 @@ class Handle(Brick):
 
 
 class Ball:
-    def __init__(self, position, color=WHITE):
+    def __init__(self, position, color=BALL_COLORS):
         self.position = list(position)
-        self.color = WHITE
+        self.color = color
         self.speed = [300, -300]
         self.prev_pos = self.position
         self.radius = BALL_RADIUS
 
-
     def draw(self, screen):
         pygame.gfxdraw.filled_circle(screen, int(self.position[0]), int(self.position[1]), self.radius, self.color)
-
 
     def update(self, ticks):
         self.prev_pos = self.position[:]
@@ -244,7 +243,6 @@ def main():
     sound_spawn = pygame.mixer.Sound('sound/Arkanoid SFX (4).wav')
     sound_brick_no_dead = pygame.mixer.Sound('sound/Arkanoid SFX (7).wav')
     sound_game_over = pygame.mixer.Sound('sound/05_-_Arkanoid_-_ARC_-_Game_Over.ogg')
-
 
     screen = pygame.display.set_mode(SIZE)
     world = World(screen)
