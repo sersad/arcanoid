@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+from math import radians, sin, cos
 from random import randint, random
 from time import sleep
 
@@ -129,20 +130,37 @@ class Brick:
         self.position = list(position)
         self.lives = lives
         self.color = BRICK_COLORS[lives]
-        self.tick = 0
+        # пока не нужно
+        self.rect = pygame.Rect(*self.position, BRICK_SIZE[0], BRICK_SIZE[1])
 
     def draw(self, screen):
         self.color = BRICK_COLORS[self.lives]
         pygame.gfxdraw.box(screen, pygame.Rect((self.position[0] + 1, self.position[1] + 1),
                                                (self.w_size + 1, self.h_size + 1)), DARKGRAY)
-        pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), self.color)
+        # pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), self.color)
+
+        colour_rect = pygame.Surface((2, 2))  # tiny! 2x2 bitmap
+        pygame.draw.line(colour_rect, MAGENTA, (0, 0), (0, 1))  # left colour line
+        pygame.draw.line(colour_rect, self.color, (1, 0), (1, 1))
+        colour_rect = pygame.transform.smoothscale(colour_rect, (self.w_size, self.h_size))
+        screen.blit(colour_rect, self.position)
+
         # if randint(0, 1) and self.lives > 1:
         #         pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), self.color.correct_gamma(randint(0, 255)))
-        # if randint(0, 4) and self.lives > 3:
         # if self.lives > 3:
         #     pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), self.color.correct_gamma(randint(0, 100)))
-            # if randint(0, 1):
-            #     pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), DARKRED)
+        #     pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), self.color.correct_gamma(randint(0, 100)))
+        #     if randint(0, 1):
+        #         pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), DARKRED)
+
+    def gradientRect(window, left_colour, right_colour, target_rect):
+        """ Draw a horizontal-gradient filled rectangle covering <target_rect> """
+        colour_rect = pygame.Surface((2, 2))  # tiny! 2x2 bitmap
+        pygame.draw.line(colour_rect, left_colour, (0, 0), (0, 1))  # left colour line
+        pygame.draw.line(colour_rect, right_colour, (1, 0), (1, 1))  # right colour line
+        colour_rect = pygame.transform.smoothscale(colour_rect, (target_rect.width, target_rect.height))  # stretch!
+        window.blit(colour_rect, target_rect)
+
 
     def draw_destroy(self, screen):
         self.color = BRICK_COLORS[self.lives]
@@ -197,8 +215,10 @@ class Ball:
         self.prev_pos = self.position
         self.radius = BALL_RADIUS
 
+
     def draw(self, screen):
         pygame.gfxdraw.filled_circle(screen, int(self.position[0]), int(self.position[1]), self.radius, self.color)
+
 
     def update(self, ticks):
         self.prev_pos = self.position[:]
