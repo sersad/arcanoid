@@ -1,31 +1,26 @@
+#!/usr/bin/env python3
 import os
 import sys
+from random import randint
 
 import pygame
-from pygame.locals import *
 import pygame.gfxdraw
+from pygame.locals import *
 
-TARGET_FPS = 60
-BLACK = pygame.Color("black")
-WHITE = pygame.Color("white")
+
+SIZE = WIDTH, HEIGHT = 1024, 768
+BRICK_SIZE = 40, 20
+HANDLE_SIZE = 160, 10
+BALL_RADIUS = 5
+
+WHITE = pygame.Color("WHITE")
+BLACK = pygame.Color("BLACK")
 RED = pygame.Color("red")
+GREEN = pygame.Color("green")
 YELLOW = pygame.Color("yellow")
 GRAY = pygame.Color("gray")
-BRICK_SIZE = 40, 40
-HANDLE_SIZE = 160, 10
-WINDOW_SIZE = WIDTH, HEIGHT = 980, 700
-
-pygame.init()
-
-screen = pygame.display.set_mode(WINDOW_SIZE)
-clock = pygame.time.Clock()
-
-# pygame.mixer.music.load('sound/02_-_Arkanoid_-_ARC_-_Game_Start.ogg')
-# pygame.mixer.music.play()
-
-sound1 = pygame.mixer.Sound('sound/Arkanoid SFX (2).wav')
-sound2 = pygame.mixer.Sound('sound/Arkanoid SFX (1).wav')
-sound3 = pygame.mixer.Sound('sound/Arkanoid SFX (4).wav')
+DARKGRAY = pygame.Color("darkgray")
+BRICK_COLORS = {1: WHITE, 2: GREEN, 3: YELLOW, 4: RED}
 
 
 def load_image(name, colorkey=None):
@@ -45,130 +40,185 @@ def load_image(name, colorkey=None):
     return image
 
 
-class Ball(pygame.sprite.Sprite):
-    def __init__(self, radius, x, y, color=RED):
-        super().__init__(all_sprites)
-        self.radius = radius
-        self.image = pygame.Surface((2 * radius, 2 * radius),
-                                    pygame.SRCALPHA, 32)
-        # pygame.draw.circle(self.image, color,
-        #                    (radius, radius), radius)
-        pygame.gfxdraw.filled_circle(self.image, radius, radius, radius, color)
-        self.rect = pygame.Rect(x, y, 2 * radius, 2 * radius)
-        self.vx = -5
-        self.vy = -5
-        self.add(balls)
+class World:
+    def __init__(self, screen):
+        self.screen = screen
+        self.clock = pygame.time.Clock()
+        self.bricks = []
+        for x in range(20):
+            for y in range(5):
+                lives = randint(1, 4)
+                self.bricks.append(Brick(((10 + (BRICK_SIZE[0] + 10) * x, 40 + (BRICK_SIZE[1] + 10) * y)),
+                                         lives=lives))
+        self.handle = Handle((WIDTH // 2 - HANDLE_SIZE[0] // 2, HEIGHT - HANDLE_SIZE[1] - 40))
+        self.balls = []
+        self.spawn_ball()
 
-    # движение с проверкой столкновение шара
-    def update(self):
-        self.rect = self.rect.move(self.vy, self.vx)
-        # self.rect.move_ip(self.vx, self.vy)
-        if pygame.sprite.spritecollideany(self, horizontal_borders):
-            self.vx = -self.vx
-        if pygame.sprite.spritecollideany(self, vertical_borders):
-            self.vy = -self.vy
+    def draw(self):
+        self.handle.draw(self.screen)
+        for i in self.bricks:
+            i.draw(self.screen)
 
-        if pygame.sprite.spritecollideany(self, handle):
-            self.vx = -self.vx
-            sound1.play()
-
-
-class Border(pygame.sprite.Sprite):
-    # строго вертикальный или строго горизонтальный отрезок
-    def __init__(self, x1, y1, x2, y2):
-        super().__init__(all_sprites)
-        if x1 == x2:  # вертикальная стенка
-            self.add(vertical_borders)
-            self.image = pygame.Surface([1, y2 - y1])
-            self.rect = pygame.Rect(x1, y1, 1, y2 - y1)
-        else:  # горизонтальная стенка
-            self.add(horizontal_borders)
-            self.image = pygame.Surface([x2 - x1, 1])
-            self.rect = pygame.Rect(x1, y1, x2 - x1, 1)
-
-
-class Brick(pygame.sprite.Sprite):
-    def __init__(self, position: tuple, size: tuple = BRICK_SIZE, color=WHITE):
-        super().__init__(all_sprites)
-        self.position = list(position)
-        self.size = size
-        self.image = pygame.Surface(self.size, pygame.SRCALPHA, 32)
-        self.image.fill(GRAY)
-        self.rect = pygame.Rect(*self.position, *self.size)
-        pygame.draw.rect(self.image, color, (1, 1, self.size[0] - 2, self.size[1] - 2))
-        self.add(bricks)
-
-    def update(self, *args, **kwargs) -> None:
-        if ball := pygame.sprite.spritecollide(self, balls, False):
-            for b in ball:
-                b.vx = -b.vx
-                # self.rect.collidepoint()
-                print("brick", self.rect.centerx, self.rect.centery)
-                print("ball", b.rect.centerx, b.rect.centery)
-            sound2.play()
-            self.kill()
-
-
-class Handle(pygame.sprite.Sprite):
-    def __init__(self, position: tuple, size: tuple = HANDLE_SIZE, color=YELLOW):
-        super().__init__(all_sprites)
-        self.position = list(position)
-        self.size = size
-        self.image = pygame.Surface(self.size, pygame.SRCALPHA, 32)
-        self.image.fill(GRAY)
-        self.rect = pygame.Rect(*self.position, *self.size)
-        pygame.draw.rect(self.image, color, (1, 1, self.size[0] - 2, self.size[1] - 2))
-        self.add(handle)
+        for i in self.balls:
+            i.draw(self.screen)
 
     def update(self):
-        if pygame.key.get_pressed()[K_RIGHT] and 0 <= self.rect[0] < WIDTH - HANDLE_SIZE[0]:
-            self.rect.move_ip(5, 0)
-        if pygame.key.get_pressed()[K_LEFT] and 0 // 2 < self.rect[0] <= WIDTH - HANDLE_SIZE[0]:
-            self.rect.move_ip(-5, 0)
+        time = self.clock.get_time()
+        self.handle.update(time)
+        for i in self.balls:
+            i.update(time)
+
+        for ball in self.balls:
+            if ball.position[1] > HEIGHT:
+                self.balls.remove(ball)
+
+        if not self.balls:
+            self.handle = Handle((WIDTH // 2 - 30, HEIGHT - 10 - 40))
+            self.spawn_ball()
+            return
+
+        new_bricks = []
+        for i in self.bricks:
+            for ball in self.balls:
+                if i.is_inside(ball.position):
+                    i.check_collision(ball)
+                    i.lives -= 1
+                    if i.lives < 1:
+                        sound_brick_dead.play()
+                        break
+                    sound_brick_no_dead.play()
+            else:
+                new_bricks.append(i)
+
+        self.bricks = new_bricks
+
+        for ball in self.balls:
+            if self.handle.is_inside(ball.position):
+                self.handle.check_collision(ball)
+                sound_handle.play()
+                if pygame.key.get_pressed()[K_RIGHT]:
+                    ball.speed[0] += 50
+
+                if pygame.key.get_pressed()[K_LEFT]:
+                    ball.speed[0] -= 50
+
+    def tick(self):
+        self.clock.tick(120)
+
+    def spawn_ball(self):
+        position = self.handle.position[:]
+        position[0] += 30
+        position[1] -= 5
+        self.balls.append(Ball(position))
+        sound_spawn.play()
 
 
-# группа, содержащая все спрайты
-all_sprites = pygame.sprite.Group()
-# горизонтальные стенки
-horizontal_borders = pygame.sprite.Group()
-# вертикальные стенки
-vertical_borders = pygame.sprite.Group()
-# кирпичи
-bricks = pygame.sprite.Group()
-# ракетка
-handle = pygame.sprite.Group()
-# Мячи
-balls = pygame.sprite.Group()
+class Brick:
+    w_size = BRICK_SIZE[0]
+    h_size = BRICK_SIZE[1]
 
-Border(5, 5, WIDTH - 5, 5)
-Border(5, HEIGHT - 5, WIDTH - 5, HEIGHT - 5)
-Border(5, 5, 5, HEIGHT - 5)
-Border(WIDTH - 5, 5, WIDTH - 5, HEIGHT - 5)
+    def __init__(self, position=None, lives=1):
+        self.position = list(position)
+        self.lives = lives
+        self.color = BRICK_COLORS[lives]
 
-Ball(10, WIDTH // 2, HEIGHT - BRICK_SIZE[1] * 2)
-Handle((WIDTH // 2 - 30, HEIGHT - 30))
+    def draw(self, screen):
+        self.color = BRICK_COLORS[self.lives]
+        pygame.gfxdraw.box(screen, pygame.Rect((self.position[0] + 1, self.position[1] + 1),
+                                               (self.w_size + 1, self.h_size + 1)), DARKGRAY)
+        pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), self.color)
 
-for w in range(5, WIDTH, BRICK_SIZE[0] + 5):
-    for h in range(50, 150, BRICK_SIZE[1] + 5):
-        Brick((w, h))
+    def is_inside_hbounds(self, x):
+        left_bound = self.position[0] - BALL_RADIUS
+        right_bound = self.position[0] + self.w_size + BALL_RADIUS
+        return left_bound <= x <= right_bound
 
-for w in range(5, 100, BRICK_SIZE[0] + 5):
-    for h in range(150, 600, BRICK_SIZE[1] + 5):
-        Brick((w, h))
+    def is_inside_vbounds(self, y):
+        up_bound = self.position[1] - BALL_RADIUS
+        down_bound = self.position[1] + self.h_size + BALL_RADIUS
+        return up_bound <= y <= down_bound
+
+    def is_inside(self, position):
+        x, y = position
+        return self.is_inside_hbounds(x) and self.is_inside_vbounds(y)
+
+    def is_h_collide(self, x1, x2):
+        return not self.is_inside_hbounds(x1) and self.is_inside_hbounds(x2)
+
+    def is_v_collide(self, y1, y2):
+        return not self.is_inside_vbounds(y1) and self.is_inside_vbounds(y2)
+
+    def check_collision(self, ball):
+        if self.is_h_collide(ball.prev_pos[0], ball.position[0]):
+            ball.speed[0] *= -1
+        if self.is_v_collide(ball.prev_pos[1], ball.position[1]):
+            ball.speed[1] *= -1
 
 
-clock = pygame.time.Clock()
+class Handle(Brick):
+    w_size = HANDLE_SIZE[0]
+    h_size = HANDLE_SIZE[1]
 
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+    def update(self, ticks):
+        if pygame.key.get_pressed()[K_RIGHT] and 0 <= self.position[0] < WIDTH - HANDLE_SIZE[0] - 4:
+            self.position[0] += 500 * ticks / 1000
 
-    screen.fill(BLACK)
-    all_sprites.draw(screen)
-    all_sprites.update()
-    pygame.display.flip()
+        if pygame.key.get_pressed()[K_LEFT] and 4 < self.position[0] <= WIDTH - HANDLE_SIZE[0]:
+            self.position[0] -= 500 * ticks / 1000
 
-    clock.tick(TARGET_FPS)
-pygame.quit()
+
+class Ball:
+    def __init__(self, position, color=WHITE):
+        self.position = list(position)
+        self.color = WHITE
+        self.speed = [300, -300]
+        self.prev_pos = self.position
+        self.radius = BALL_RADIUS
+
+    def draw(self, screen):
+        pygame.gfxdraw.filled_circle(screen, int(self.position[0]), int(self.position[1]), self.radius, self.color)
+
+    def update(self, ticks):
+        self.prev_pos = self.position[:]
+
+        if self.position[0] < self.radius or self.position[0] >= (WIDTH - self.radius):
+            self.speed[0] *= -1
+
+        if self.position[1] < self.radius:
+            self.speed[1] *= -1
+
+        for i in (0, 1):
+            self.position[i] += self.speed[i] * ticks / 1000
+
+
+def main():
+    global sound_handle, sound_brick_dead, sound_brick_no_dead, sound_spawn, sound_game_over
+    pygame.init()
+    # pygame.mixer.music.load('sound/02_-_Arkanoid_-_ARC_-_Game_Start.ogg')
+    # pygame.mixer.music.play()
+
+    sound_handle = pygame.mixer.Sound('sound/Arkanoid SFX (2).wav')
+    sound_brick_dead = pygame.mixer.Sound('sound/Arkanoid SFX (1).wav')
+    sound_spawn = pygame.mixer.Sound('sound/Arkanoid SFX (4).wav')
+    sound_brick_no_dead = pygame.mixer.Sound('sound/Arkanoid SFX (7).wav')
+    sound_game_over = pygame.mixer.Sound('sound/05_-_Arkanoid_-_ARC_-_Game_Over.ogg')
+
+
+    screen = pygame.display.set_mode(SIZE)
+    world = World(screen)
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return
+
+        screen.fill(BLACK)
+        world.update()
+        world.draw()
+        world.tick()
+        pygame.display.flip()
+
+
+if __name__ == '__main__':
+    main()
