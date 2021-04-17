@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import os
 import sys
-from random import randint
+from random import randint, random
+from time import sleep
 
 import pygame
 import pygame.gfxdraw
@@ -13,14 +14,19 @@ BRICK_SIZE = 40, 20
 HANDLE_SIZE = 160, 10
 BALL_RADIUS = 5
 
+# https://github.com/pygame/pygame/blob/main/src_py/colordict.py
 WHITE = pygame.Color("WHITE")
 BLACK = pygame.Color("BLACK")
 RED = pygame.Color("red")
+DARKRED = pygame.Color("darkred")
 GREEN = pygame.Color("green")
+BLUE = pygame.Color("blue")
 YELLOW = pygame.Color("yellow")
+MAGENTA = pygame.Color("magenta")
+MAGENTA4 = pygame.Color("magenta4")
 GRAY = pygame.Color("gray")
 DARKGRAY = pygame.Color("darkgray")
-BRICK_COLORS = {1: WHITE, 2: GREEN, 3: YELLOW, 4: RED}
+BRICK_COLORS = {0: WHITE, 1: WHITE, 2: GREEN, 3: YELLOW, 4: RED}
 
 
 def load_image(name, colorkey=None):
@@ -56,11 +62,11 @@ class World:
 
     def draw(self):
         self.handle.draw(self.screen)
-        for i in self.bricks:
-            i.draw(self.screen)
+        for brick in self.bricks:
+            brick.draw(self.screen)
 
-        for i in self.balls:
-            i.draw(self.screen)
+        for ball in self.balls:
+            ball.draw(self.screen)
 
     def update(self):
         time = self.clock.get_time()
@@ -78,17 +84,19 @@ class World:
             return
 
         new_bricks = []
-        for i in self.bricks:
+        for brick in self.bricks:
             for ball in self.balls:
-                if i.is_inside(ball.position):
-                    i.check_collision(ball)
-                    i.lives -= 1
-                    if i.lives < 1:
+                if brick.is_inside(ball.position):
+                    brick.check_collision(ball)
+                    brick.lives -= 1
+                    if brick.lives < 1:
                         sound_brick_dead.play()
+                        brick.draw_destroy(self.screen)
                         break
                     sound_brick_no_dead.play()
+                    brick.draw_destroy(self.screen)
             else:
-                new_bricks.append(i)
+                new_bricks.append(brick)
 
         self.bricks = new_bricks
 
@@ -121,12 +129,26 @@ class Brick:
         self.position = list(position)
         self.lives = lives
         self.color = BRICK_COLORS[lives]
+        self.tick = 0
 
     def draw(self, screen):
         self.color = BRICK_COLORS[self.lives]
         pygame.gfxdraw.box(screen, pygame.Rect((self.position[0] + 1, self.position[1] + 1),
                                                (self.w_size + 1, self.h_size + 1)), DARKGRAY)
         pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), self.color)
+        # if randint(0, 1) and self.lives > 1:
+        #         pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), self.color.correct_gamma(randint(0, 255)))
+        # if randint(0, 4) and self.lives > 3:
+        # if self.lives > 3:
+        #     pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), self.color.correct_gamma(randint(0, 100)))
+            # if randint(0, 1):
+            #     pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), DARKRED)
+
+    def draw_destroy(self, screen):
+        self.color = BRICK_COLORS[self.lives]
+        pygame.gfxdraw.box(screen, pygame.Rect((self.position[0] + 1, self.position[1] + 1),
+                                               (self.w_size + 1, self.h_size + 1)), MAGENTA4)
+        pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), MAGENTA)
 
     def is_inside_hbounds(self, x):
         left_bound = self.position[0] - BALL_RADIUS
