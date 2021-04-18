@@ -35,6 +35,7 @@ MAGENTA4 = pygame.Color("magenta4")
 AQUAMARINE = pygame.Color('aquamarine')
 DEEPSKYBLUUE = pygame.Color('deepskyblue')
 DARKORANGE = pygame.Color('darkorange')
+ORANGE = pygame.Color('orange')
 GRAY = pygame.Color("gray")
 DARKGRAY = pygame.Color("darkgray")
 
@@ -46,7 +47,6 @@ BRICK_COLORS = {1: (WHITE, GRAY),
 
 BALL_COLORS = YELLOW
 
-
 pygame.init()
 pygame.font.init()
 
@@ -57,6 +57,8 @@ sound_brick_no_dead = pygame.mixer.Sound('sound/Arkanoid SFX (7).wav')
 sound_game_over = pygame.mixer.Sound('sound/05_-_Arkanoid_-_ARC_-_Game_Over.ogg')
 sound_game_start = pygame.mixer.Sound('sound/02_-_Arkanoid_-_ARC_-_Game_Start.ogg')
 sound_next_level = pygame.mixer.Sound('sound/Arkanoid SFX (9).wav')
+sound_get_bonus = pygame.mixer.Sound('sound/Arkanoid SFX (8).wav')
+sound_lost_bonus = pygame.mixer.Sound('sound/Arkanoid SFX (3).wav')
 
 # pygame.mixer.music.load('sound/02_-_Arkanoid_-_ARC_-_Game_Start.ogg')
 # pygame.mixer.music.play()
@@ -85,6 +87,7 @@ class World:
     """
     Основное игровое поле
     """
+
     def __init__(self, screen) -> None:
         sound_game_start.play()
         self.screen = screen
@@ -94,8 +97,7 @@ class World:
         self.score = 0
         self.bricks = []
         self.balls = []
-        self.wall = None
-
+        self.bonuses = []
         self.handle = Handle((WIDTH // 2 - HANDLE_SIZE[0] // 2, HEIGHT - HANDLE_SIZE[1] - 40))
         self.spawn_ball()
         self.map_generator()
@@ -109,6 +111,8 @@ class World:
                       }
         # Ну вы поняли :)
         if IDDQD:
+            for i in range(1, 7):
+                self.bonuses.append(Bonus(bonus_id=i, position=(150 * i, 100)))
             self.bonus_add_balls()
             self.bonus_add_balls()
             self.bonus_balls_increase_speed()
@@ -120,6 +124,7 @@ class World:
         Генератор карты. В зависимости от уровня меняется кол-во и тип кирпичей
         :return:
         """
+        self.bricks.clear()
         random_lives = []
         random_lives.extend([1] * 5)
         random_lives.extend([2] * self.level * 3)
@@ -127,7 +132,7 @@ class World:
         random_lives.extend([4] * self.level)
         logging.warning(f'LEVEL={self.level} random lives: {random_lives}')
         for x in range(0, 20):
-            for y in range(1 + self.level if self.level < 11 else 10):
+            for y in range(1 + self.level if self.level < 12 else 12):
                 lives = choice(random_lives)
                 self.bricks.append(
                     Brick(((10 + (BRICK_SIZE[0] + 10) * x, 40 + (BRICK_SIZE[1] + 10) * y)),
@@ -141,6 +146,9 @@ class World:
 
         for ball in self.balls:
             ball.draw(self.screen)
+
+        for bonus in self.bonuses:
+            bonus.draw(self.screen)
 
         self.text_draw()
 
@@ -170,13 +178,25 @@ class World:
 
     def update(self) -> None:
         time = self.clock.get_time()
+        # обновляем ракетку
         self.handle.update(time)
-        for i in self.balls:
-            i.update(time)
+        # обновляем мячи
+        for ball in self.balls:
+            ball.update(time)
         # если мяч вылетел за пределы нижней линии то удаляем его
         for ball in self.balls:
             if ball.position[1] > HEIGHT:
                 self.balls.remove(ball)
+        # обновляем бонусы
+        for bonus in self.bonuses:
+            bonus.update(time)
+        # если бонус вылетел за пределы экрана удаляем его
+        for bonus in self.bonuses:
+            if bonus.position[1] > HEIGHT:
+                self.bonuses.remove(bonus)
+                sound_lost_bonus.play()
+                logging.warning(f'bonus remove bonus id = {bonus.bonus_id}')
+
         # если все мячи кончились то -1 жизнь и добавляем мяч
         if not self.balls:
             self.handle = Handle((WIDTH // 2 - 30, HEIGHT - 10 - 40))
@@ -197,9 +217,9 @@ class World:
                     if brick.lives < 1:
                         sound_brick_dead.play()
                         ioloop.run_until_complete(wait_tasks)
-                        # self.bonus_balls_decrease_speed()
+                        # если кирпич с бонусом то добавляем бонус
                         if brick.bonus:
-                            self.bonus[brick.bonus]()
+                            self.bonuses.append(Bonus(brick.bonus, position=brick.position))
                         break
                     sound_brick_no_dead.play()
                     ioloop.run_until_complete(wait_tasks)
@@ -209,7 +229,13 @@ class World:
         if not new_bricks or (len(new_bricks) <= 1 and any(True for brick in self.bricks if brick.w_size == WIDTH)):
             self.level += 1
             sound_next_level.play()
-            self.map_generator()
+            # если была стенка перегенерируем её снова
+            if any(True for brick in self.bricks if brick.w_size == WIDTH):
+                self.map_generator()
+                self.bonus_add_wall()
+            else:
+                self.map_generator()
+
             logging.warning(f'No bricks - next level {self.level}')
         else:
             self.bricks = new_bricks
@@ -223,6 +249,16 @@ class World:
 
                 if pygame.key.get_pressed()[K_LEFT]:
                     ball.speed[0] -= 50
+
+        # проверяем столкновение бонуса с ракеткой если оно произошло то дергаем бонус и бонус удаляем
+        for bonus in self.bonuses:
+            if self.handle.is_inside(bonus.position):
+                logging.warning(f'handle get bonus id = {bonus.bonus_id}')
+                self.bonus[bonus.bonus_id]()
+                wait_tasks = asyncio.wait([ioloop.create_task(bonus.draw_destroy(self.screen))])
+                ioloop.run_until_complete(wait_tasks)
+                sound_get_bonus.play()
+                self.bonuses.remove(bonus)
 
     def tick(self):
         self.clock.tick(60)
@@ -260,7 +296,7 @@ class World:
                 logging.warning(f'bonus_add_wall WALL add lives = {brick.lives}')
                 return
         # иначе добавляем
-        wall = Brick((0, HEIGHT-5), lives=lives)
+        wall = Brick((0, HEIGHT - 5), lives=lives)
         wall.bonus = 0
         wall.h_size = 5
         wall.w_size = WIDTH
@@ -278,13 +314,14 @@ class World:
 
     def bonus_add_balls(self):
         """
-        Бонус + 3 шарика
+        Бонус + 3 шарика и сейчас не больше 20 мячей
         :return:
         """
         self.score += 20000
-        for _ in range(3):
-            self.spawn_ball()
-        logging.warning(f'bonus_add_balls balls = {len(self.balls)}')
+        if len(self.balls) < 20:
+            for _ in range(3):
+                self.spawn_ball()
+            logging.warning(f'bonus_add_balls balls = {len(self.balls)}')
 
     def bonus_balls_increase_speed(self):
         """
@@ -320,12 +357,10 @@ class World:
         sound_next_level.play()
         logging.warning(f'bonus_next_level level = {self.level}')
         if any(True for brick in self.bricks if brick.w_size == WIDTH):
-            self.bricks = []
             self.map_generator()
             self.bonus_add_wall()
             logging.warning(f'bonus_next_level with WALL')
         else:
-            self.bricks = []
             self.map_generator()
             logging.warning(f'bonus_next_level with NO WALL')
 
@@ -349,11 +384,11 @@ class Brick:
         # bonus_add_balls
         rnd_bonus.extend([3] * 4)
         # bonus_next_level
-        rnd_bonus.extend([4] * 2)
+        rnd_bonus.extend([4])
         # bonus_balls_increase_speed
         rnd_bonus.extend([5] * 2)
         # bonus_balls_decrease_speed
-        rnd_bonus.extend([6] * 6)
+        rnd_bonus.extend([6] * 2)
         self.bonus = choice(rnd_bonus)
         # logging.warning(f'brick bonus {self.bonus}')
 
@@ -443,6 +478,7 @@ class Ball:
     Класс мяча
     Небольшой рандом в скоростях
     """
+
     def __init__(self, position, color=BALL_COLORS):
         self.position = list(position)
         self.color = color
@@ -464,6 +500,52 @@ class Ball:
 
         for i in (0, 1):
             self.position[i] += self.speed[i] * ticks / 1000
+
+
+class Bonus(Brick):
+    """
+    Класс падающего бонуса
+    """
+    def __init__(self, bonus_id, position=None):
+        super(Bonus, self).__init__(position, lives=1)
+        self.position = [int(position[0] + BRICK_SIZE[0] // 2), int(position[1] + BRICK_SIZE[1])]
+        self.color = BRICK_COLORS[5]
+        self.speed = 200
+        self.bonus_id = bonus_id
+        self.prev_pos = self.position
+
+    def draw(self, screen: pygame.Surface) -> None:
+        my_font = pygame.font.SysFont('Arial', 20)
+        x, y = self.position
+        if self.bonus_id == 1:
+            # bonus_add_wall
+            pygame.gfxdraw.rectangle(screen, (x, y, 50, 10), DARKORANGE)
+        elif self.bonus_id == 2:
+            # bonus_add_lives
+            pygame.gfxdraw.filled_circle(screen, x + BALL_RADIUS * 2 + 4, y, BALL_RADIUS + 2, DARKORANGE)
+            pygame.gfxdraw.filled_circle(screen, x, y, BALL_RADIUS + 2, DARKORANGE)
+            pygame.gfxdraw.filled_circle(screen, x - BALL_RADIUS * 2 - 4, y, BALL_RADIUS + 2, DARKORANGE)
+        elif self.bonus_id == 3:
+            # bonus_add_balls
+            pygame.gfxdraw.filled_circle(screen, x + BALL_RADIUS * 2, y + BALL_RADIUS * 2, BALL_RADIUS + 2, BLUE)
+            pygame.gfxdraw.filled_circle(screen, x, y, BALL_RADIUS + 2, ORANGE)
+            pygame.gfxdraw.filled_circle(screen, x - BALL_RADIUS * 2, y + BALL_RADIUS * 2, BALL_RADIUS + 2, GREEN)
+        elif self.bonus_id == 4:
+            # bonus_next_level
+            surface = my_font.render('NEXT LEVEL', True, DARKORANGE)
+            screen.blit(surface, (x, y))
+        elif self.bonus_id == 5:
+            # bonus_balls_increase_speed
+            surface = my_font.render('SPEED ↑', True, DARKORANGE)
+            screen.blit(surface, (x, y))
+        elif self.bonus_id == 6:
+            # bonus_balls_decrease_speed
+            surface = my_font.render('SPEED ↓', True, DARKORANGE)
+            screen.blit(surface, (x, y))
+
+    def update(self, ticks):
+        self.prev_pos = self.position[:]
+        self.position[1] += int(self.speed * ticks / 1000)
 
 
 def main():
