@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
+import logging
 import os
 import sys
 from time import sleep
@@ -8,6 +9,10 @@ from random import randint, choice
 import pygame
 import pygame.gfxdraw
 from pygame.locals import *
+
+logging.basicConfig(level=logging.WARNING)
+
+IDDQD = True
 
 SIZE = WIDTH, HEIGHT = 1024, 768
 BRICK_SIZE = 40, 20
@@ -88,25 +93,22 @@ class World:
         self.score = 0
         self.bricks = []
         self.balls = []
+        self.wall = None
+
         self.handle = Handle((WIDTH // 2 - HANDLE_SIZE[0] // 2, HEIGHT - HANDLE_SIZE[1] - 40))
         self.spawn_ball()
-
         self.map_generator()
-
-        # Бонусная стенка на 10 жизней
-        self.wall = Brick((0, HEIGHT-5), lives=100)
-        self.wall.bonus = 0
-        self.wall.h_size = 5
-        self.wall.w_size = WIDTH
-        self.bricks.append(self.wall)
 
         self.bonus = {0: None,
                       1: self.bonus_add_wall,
                       2: self.bonus_add_lives,
                       3: self.bonus_add_balls,
                       4: self.bonus_next_level}
-
-        self.bonus_add_balls()
+        # Ну вы поняли :)
+        if IDDQD:
+            self.bonus_add_balls()
+            self.bonus_add_balls()
+            self.bonus_add_wall(lives=999)
 
     def map_generator(self) -> None:
         """
@@ -119,9 +121,8 @@ class World:
         random_lives.extend([3] * self.level * 2)
         random_lives.extend([4] * self.level)
         print(random_lives)
-        for x in range(19, 20):
+        for x in range(0, 20):
             for y in range(1 + self.level if self.level < 11 else 10):
-                # lives = randint(1, 4)
                 lives = choice(random_lives)
                 self.bricks.append(
                     Brick(((10 + (BRICK_SIZE[0] + 10) * x, 40 + (BRICK_SIZE[1] + 10) * y)),
@@ -140,18 +141,27 @@ class World:
 
     def text_draw(self) -> None:
         """
-        Рисование жизней, очков и уровня на экране
+        Рисование жизней, очков и уровня на экране.
+        Жизней больше 20 не рисует, но считает
+        Если есть нижняя стенка то рисуем её жизни
         :return:
         """
-        myfont = pygame.font.SysFont('Comic Sans MS', 14)
-        lives_surface = myfont.render('LIVES:', False, MAGENTA4)
-        score_surface = myfont.render(f'SCORE: {self.score:012d}', False, MAGENTA4)
-        score_level = myfont.render(f'LEVEl: {self.level:0d}', False, MAGENTA4)
-        self.screen.blit(lives_surface, (WIDTH - 470, 5))
+        my_font = pygame.font.SysFont('Comic Sans MS', 14)
+        lives_surface = my_font.render('LIVES:', False, MAGENTA4)
+        score_surface = my_font.render(f'SCORE: {self.score:012d}', False, MAGENTA4)
+        level_surface = my_font.render(f'LEVEL: {self.level:02d}', False, MAGENTA4)
+
+        self.screen.blit(lives_surface, (WIDTH - 500, 5))
         self.screen.blit(score_surface, (WIDTH - 200, 5))
-        self.screen.blit(score_level, (10, 5))
-        for i in range(self.lives):
-            pygame.gfxdraw.filled_circle(self.screen, WIDTH - (400 - i * 15), 15, 5, DARKORANGE)
+        self.screen.blit(level_surface, (10, 5))
+        # жизни нижней стенки
+        if any(True for brick in self.bricks if brick.w_size == WIDTH):
+            lives = [brick for brick in self.bricks if brick.w_size == WIDTH][0].lives
+            wall_surface = my_font.render(f'WALL LIVES: {lives}', False, DARKORANGE)
+            self.screen.blit(wall_surface, (200, 5))
+
+        for i in range(self.lives if self.lives < 21 else 20):
+            pygame.gfxdraw.filled_circle(self.screen, WIDTH - (440 - i * 12), 15, 4, DARKORANGE)
 
     def update(self) -> None:
         time = self.clock.get_time()
@@ -182,16 +192,18 @@ class World:
                     if brick.lives < 1:
                         sound_brick_dead.play()
                         ioloop.run_until_complete(wait_tasks)
+                        # self.bonus_add_lives()
                         break
                     sound_brick_no_dead.play()
                     ioloop.run_until_complete(wait_tasks)
             else:
                 new_bricks.append(brick)
         # если кирпичи кончились генерируем новую карту и делаем новый уровень
-        if not new_bricks or (len(new_bricks) <= 1 and new_bricks.count(self.wall)):
+        if not new_bricks or (len(new_bricks) <= 1 and any(True for brick in self.bricks if brick.w_size == WIDTH)):
             self.level += 1
             sound_next_level.play()
             self.map_generator()
+            logging.warning(f'No bricks - next level {self.level}')
         else:
             self.bricks = new_bricks
         # проверяем столкновение мячей с ракеткой, если во время движения то меняем скорости мячей
@@ -214,7 +226,7 @@ class World:
         :return:
         """
         position = self.handle.position[:]
-        position[0] += randint(20, 40)
+        position[0] += randint(15, 45)
         position[1] -= 5
         self.balls.append(Ball(position))
         sound_spawn.play()
@@ -228,21 +240,25 @@ class World:
         sound_game_over.play()
         print('game over')
 
-    def bonus_add_wall(self):
+    def bonus_add_wall(self, lives=10):
         """
         Бонус добавляем нижнюю стенку с 10 жизнями
         :return:
         """
         self.score += 20000
-        if self.bricks.count(self.wall):
-            i = self.bricks.index(self.wall)
-            wall = self.bricks.pop(i)
-            wall.lives += 10
-            self.bricks.append(wall)
-        else:
-            wall = self.wall
-            wall.lives = 10
-            self.bricks.append(wall)
+        # если была то добавляем 10 жизней
+        for brick in self.bricks:
+            if brick.w_size == WIDTH:
+                brick.lives += lives
+                logging.warning(f'bonus_add_wall WALL add lives = {brick.lives}')
+                return
+        # иначе добавляем
+        wall = Brick((0, HEIGHT-5), lives=lives)
+        wall.bonus = 0
+        wall.h_size = 5
+        wall.w_size = WIDTH
+        self.bricks.append(wall)
+        logging.warning(f'bonus_add_wall add new WALL')
 
     def bonus_add_lives(self) -> None:
         """
@@ -251,6 +267,7 @@ class World:
         """
         self.lives += 3
         self.score += 20000
+        logging.warning(f'bonus_add_lives lives = {self.lives}')
 
     def bonus_add_balls(self):
         """
@@ -260,22 +277,26 @@ class World:
         self.score += 20000
         for _ in range(3):
             self.spawn_ball()
+        logging.warning(f'bonus_add_balls balls = {len(self.balls)}')
 
     def bonus_next_level(self) -> None:
         """
         Бонус переход на сл уровень
         :return:
         """
+        self.score += 20000
         self.level += 1
         sound_next_level.play()
-        if self.bricks.count(self.wall):
-            i = self.bricks.index(self.wall)
-            wall = self.bricks.pop(i)
-            self.score += 20000
-        self.bricks = []
-        self.map_generator()
-        if wall:
-            self.bricks.append(wall)
+        logging.warning(f'bonus_next_level level = {self.level}')
+        if any(True for brick in self.bricks if brick.w_size == WIDTH):
+            self.bricks = []
+            self.map_generator()
+            self.bonus_add_wall()
+            logging.warning(f'bonus_next_level with WALL')
+        else:
+            self.bricks = []
+            self.map_generator()
+            logging.warning(f'bonus_next_level with NO WALL')
 
 
 class Brick:
