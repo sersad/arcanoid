@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+import asyncio
 import os
 import sys
+from asyncio import sleep
 from random import randint
 
 import pygame
@@ -48,6 +50,7 @@ sound_game_over = pygame.mixer.Sound('sound/05_-_Arkanoid_-_ARC_-_Game_Over.ogg'
 # pygame.mixer.music.load('sound/02_-_Arkanoid_-_ARC_-_Game_Start.ogg')
 # pygame.mixer.music.play()
 
+ioloop = asyncio.get_event_loop()
 
 def load_image(name: str, colorkey=None):
     fullname = os.path.join('data', name)
@@ -117,12 +120,15 @@ class World:
                 if brick.is_inside(ball.position):
                     brick.check_collision(ball)
                     brick.lives -= 1
+                    wait_tasks = asyncio.wait([ioloop.create_task(brick.draw_destroy(self.screen))])
                     if brick.lives < 1:
                         sound_brick_dead.play()
-                        brick.draw_destroy(self.screen)
+                        # brick.draw_destroy(self.screen)
+                        ioloop.run_until_complete(wait_tasks)
                         break
                     sound_brick_no_dead.play()
-                    brick.draw_destroy(self.screen)
+                    # brick.draw_destroy(self.screen)
+                    ioloop.run_until_complete(wait_tasks)
             else:
                 new_bricks.append(brick)
 
@@ -191,7 +197,7 @@ class Brick:
         colour_rect = pygame.transform.smoothscale(colour_rect, (self.w_size, self.h_size))
         screen.blit(colour_rect, self.position)
 
-    def draw_destroy(self, screen: pygame.Surface) -> None:
+    async def draw_destroy(self, screen: pygame.Surface) -> None:
         """
         Эффект уменьшения жизней у блока или его смерти.
         Если жизнь просто уменьшилась, отрисовывается рамка старого цвета вокруг блока
@@ -207,6 +213,7 @@ class Brick:
             pygame.gfxdraw.box(screen, pygame.Rect((self.position[0] - 10, self.position[1] - 10),
                                                    (self.w_size + 20, self.h_size + 20)), self.color[1])
             pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), BLUE)
+        # await sleep(0.1)
 
     def is_inside_hbounds(self, x):
         left_bound = self.position[0] - BALL_RADIUS
