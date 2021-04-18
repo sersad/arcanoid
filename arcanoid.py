@@ -3,7 +3,6 @@ import asyncio
 import logging
 import os
 import sys
-from time import sleep
 from random import randint, choice
 
 import pygame
@@ -12,18 +11,19 @@ from pygame.locals import *
 
 logging.basicConfig(level=logging.WARNING)
 
+# Пасхалочка
 IDDQD = True
 
 SIZE = WIDTH, HEIGHT = 1024, 768
 BRICK_SIZE = 40, 20
 HANDLE_SIZE = 160, 10
 BALL_RADIUS = 5
-BALL_SPEED = 600
+BALL_SPEED = 300
 LIVES = 5
 
 # https://github.com/pygame/pygame/blob/main/src_py/colordict.py
-WHITE = pygame.Color("WHITE")
-BLACK = pygame.Color("BLACK")
+WHITE = pygame.Color("white")
+BLACK = pygame.Color("black")
 RED = pygame.Color("red")
 DARKRED = pygame.Color("darkred")
 GREEN = pygame.Color("green")
@@ -41,7 +41,8 @@ DARKGRAY = pygame.Color("darkgray")
 BRICK_COLORS = {1: (WHITE, GRAY),
                 2: (GREEN, DEEPSKYBLUUE),
                 3: (YELLOW, DARKORANGE),
-                4: (RED, MAGENTA)}
+                4: (RED, MAGENTA),
+                5: (DARKORANGE, AQUAMARINE)}
 
 BALL_COLORS = YELLOW
 
@@ -98,16 +99,20 @@ class World:
         self.handle = Handle((WIDTH // 2 - HANDLE_SIZE[0] // 2, HEIGHT - HANDLE_SIZE[1] - 40))
         self.spawn_ball()
         self.map_generator()
-
-        self.bonus = {0: None,
+        self.bonus = {0: lambda x=1: x,
                       1: self.bonus_add_wall,
                       2: self.bonus_add_lives,
                       3: self.bonus_add_balls,
-                      4: self.bonus_next_level}
+                      4: self.bonus_next_level,
+                      5: self.bonus_balls_increase_speed,
+                      6: self.bonus_balls_decrease_speed,
+                      }
         # Ну вы поняли :)
         if IDDQD:
             self.bonus_add_balls()
             self.bonus_add_balls()
+            self.bonus_balls_increase_speed()
+            self.bonus[0]()
             self.bonus_add_wall(lives=999)
 
     def map_generator(self) -> None:
@@ -186,13 +191,13 @@ class World:
             for ball in self.balls:
                 if brick.is_inside(ball.position):
                     brick.check_collision(ball)
-                    self.score += brick.lives * 100
+                    self.score += brick.lives * 100 if brick.lives < 5 else 0
                     brick.lives -= 1
                     wait_tasks = asyncio.wait([ioloop.create_task(brick.draw_destroy(self.screen))])
                     if brick.lives < 1:
                         sound_brick_dead.play()
                         ioloop.run_until_complete(wait_tasks)
-                        # self.bonus_add_lives()
+                        # self.bonus_balls_decrease_speed()
                         break
                     sound_brick_no_dead.play()
                     ioloop.run_until_complete(wait_tasks)
@@ -238,7 +243,7 @@ class World:
         :return:
         """
         sound_game_over.play()
-        print('game over')
+        logging.error('game over')
 
     def bonus_add_wall(self, lives=10):
         """
@@ -278,6 +283,30 @@ class World:
         for _ in range(3):
             self.spawn_ball()
         logging.warning(f'bonus_add_balls balls = {len(self.balls)}')
+
+    def bonus_balls_increase_speed(self):
+        """
+        Бонус увеличение скорости
+        :return:
+        """
+        self.score += 20000
+        for ball in self.balls:
+            if abs(ball.speed[0]) < 600 and abs(ball.speed[1]) < 600:
+                ball.speed[0] *= 1.1
+                ball.speed[1] *= 1.1
+        logging.warning(f'bonus_balls_increase_speed')
+
+    def bonus_balls_decrease_speed(self):
+        """
+        Бонус увеличение скорости
+        :return:
+        """
+        self.score += 20000
+        for ball in self.balls:
+            if abs(ball.speed[0]) > 150 and abs(ball.speed[1]) > 150:
+                ball.speed[0] *= 0.9
+                ball.speed[1] *= 0.9
+        logging.warning(f'bonus_balls_decrease_speed')
 
     def bonus_next_level(self) -> None:
         """
@@ -396,11 +425,12 @@ class Handle(Brick):
 class Ball:
     """
     Класс мяча
+    Небольшой рандом в скоростях
     """
     def __init__(self, position, color=BALL_COLORS):
         self.position = list(position)
         self.color = color
-        self.speed = [BALL_SPEED * choice([0.95, 1, 1.05]), -BALL_SPEED * choice([0.95, 1, 1.05])]
+        self.speed = [BALL_SPEED * choice([0.8, 0.9, 1, 1.1, 1.2]), -BALL_SPEED * choice([0.8, 0.9, 1, 1.1, 1.2])]
         self.prev_pos = self.position
         self.radius = BALL_RADIUS
 
