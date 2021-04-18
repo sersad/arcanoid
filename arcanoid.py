@@ -125,7 +125,7 @@ class World:
         random_lives.extend([2] * self.level * 3)
         random_lives.extend([3] * self.level * 2)
         random_lives.extend([4] * self.level)
-        print(random_lives)
+        logging.warning(f'LEVEL={self.level} random lives: {random_lives}')
         for x in range(0, 20):
             for y in range(1 + self.level if self.level < 11 else 10):
                 lives = choice(random_lives)
@@ -198,6 +198,8 @@ class World:
                         sound_brick_dead.play()
                         ioloop.run_until_complete(wait_tasks)
                         # self.bonus_balls_decrease_speed()
+                        if brick.bonus:
+                            self.bonus[brick.bonus]()
                         break
                     sound_brick_no_dead.play()
                     ioloop.run_until_complete(wait_tasks)
@@ -298,7 +300,7 @@ class World:
 
     def bonus_balls_decrease_speed(self):
         """
-        Бонус увеличение скорости
+        Бонус уменьшения скорости
         :return:
         """
         self.score += 20000
@@ -339,7 +341,21 @@ class Brick:
         self.position = list(position)
         self.lives = lives
         self.color = BRICK_COLORS.get(lives, BRICK_COLORS[1])
-        self.bonus = choice([[0] * 10, [1], [2], [3]])
+        rnd_bonus = [0] * 30
+        # bonus_add_wall
+        rnd_bonus.extend([1] * 2)
+        # bonus_add_lives
+        rnd_bonus.extend([2] * 3)
+        # bonus_add_balls
+        rnd_bonus.extend([3] * 4)
+        # bonus_next_level
+        rnd_bonus.extend([4] * 2)
+        # bonus_balls_increase_speed
+        rnd_bonus.extend([5] * 2)
+        # bonus_balls_decrease_speed
+        rnd_bonus.extend([6] * 6)
+        self.bonus = choice(rnd_bonus)
+        # logging.warning(f'brick bonus {self.bonus}')
 
     def draw(self, screen: pygame.Surface) -> None:
         """
