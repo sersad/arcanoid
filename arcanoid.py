@@ -55,6 +55,7 @@ user_name = 'Vasya Pupkin'
 pygame.init()
 pygame.font.init()
 
+# TODO: Не запускается на компьютерах без звука!
 sound_handle = pygame.mixer.Sound('sound/Arkanoid SFX (2).wav')
 sound_brick_dead = pygame.mixer.Sound('sound/Arkanoid SFX (1).wav')
 sound_spawn = pygame.mixer.Sound('sound/Arkanoid SFX (4).wav')
@@ -631,7 +632,9 @@ def menu_start(score: int = 0, level: int = 1) -> None:
         height=HEIGHT * 0.6,
         theme=about_theme,
         title='About',
-        width=WIDTH * 0.6)
+        width=WIDTH * 0.6,
+        mouse_enabled=False
+    )
 
     for m in ABOUT:
         about_menu.add.label(m, align=pygame_menu.locals.ALIGN_CENTER, font_size=20)
@@ -645,7 +648,9 @@ def menu_start(score: int = 0, level: int = 1) -> None:
         height=HEIGHT * 0.9,
         theme=help_theme,
         title='Help',
-        width=WIDTH * 0.7)
+        width=WIDTH * 0.7,
+        mouse_enabled=False
+    )
     for m in HELP:
         help_menu.add.label(m, margin=(30, 0), align=pygame_menu.locals.ALIGN_LEFT, font_size=20)
     help_menu.add.vertical_margin(30)
@@ -658,7 +663,9 @@ def menu_start(score: int = 0, level: int = 1) -> None:
         height=HEIGHT * 0.9,
         theme=scores_theme,
         title='High scores',
-        width=WIDTH * 0.7)
+        width=WIDTH * 0.7,
+        mouse_enabled = False
+    )
 
     scores_menu.add._horizontal_margin(300)
     scores_menu.add.label(f'##       SCORES       LEVEL     NAME',
@@ -680,7 +687,9 @@ def menu_start(score: int = 0, level: int = 1) -> None:
     menu = pygame_menu.Menu(height=HEIGHT,
                             width=WIDTH,
                             title='ARCANOID',
-                            theme=pygame_menu.themes.THEME_DARK)
+                            theme=pygame_menu.themes.THEME_DARK,
+                            mouse_enabled=False
+                            )
 
     menu.add.button('Play', start_the_game)
     menu.add.text_input('Name: ', default='Vasya Pupkin', onchange=change_name)
