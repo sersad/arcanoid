@@ -7,12 +7,13 @@ from random import randint, choice
 
 import pygame
 import pygame.gfxdraw
+import pygame_menu
 from pygame.locals import *
 
 logging.basicConfig(level=logging.WARNING)
 
 # Пасхалочка
-IDDQD = True
+IDDQD = False
 
 SIZE = WIDTH, HEIGHT = 1024, 768
 BRICK_SIZE = 40, 20
@@ -95,7 +96,7 @@ class World:
         self.bricks = []
         self.balls = []
         self.bonuses = []
-        self.start = False
+        self.start = True
         self.handle = Handle((WIDTH // 2 - HANDLE_SIZE[0] // 2, HEIGHT - HANDLE_SIZE[1] - 40))
         self.spawn_ball()
         self.map_generator()
@@ -282,6 +283,7 @@ class World:
         """
         sound_game_over.play()
         logging.error('game over')
+        menu_start(score=self.score, level=self.level)
 
     def bonus_add_wall(self, lives=10):
         """
@@ -506,6 +508,7 @@ class Bonus(Brick):
     """
     Класс падающего бонуса
     """
+
     def __init__(self, bonus_id, position=None):
         super(Bonus, self).__init__(position, lives=1)
         self.position = [int(position[0] + BRICK_SIZE[0] // 2), int(position[1] + BRICK_SIZE[1])]
@@ -548,13 +551,104 @@ class Bonus(Brick):
         self.position[1] += int(self.speed * ticks / 1000)
 
 
-def main():
+# MENU
+
+
+def set_difficulty(value, difficulty):
+    print(value, difficulty)
+    # Do the job here !
+    pass
+
+
+def menu_start(score: int = 0, level: int = 1) -> None:
+    """
+    стартовое меню игры
+    :param score: int
+    :param level: int
+    :return:
+    """
+    ABOUT = ['pygame project от преподавателя Яндекс Лицея',
+             'Author: Lord Voldemort (нельзя себя называть, увы)',
+             'Email: _____ почта тоже в секрете']
+
+    HELP = ['Управление кнопками вправо и влево',
+            'Пауза клавиша <p>',
+            'В игре 6 типов бонусов:',
+            '- защитная стена снизу с 10 жизнями, ',
+            '  жизнь стены уменьшается при попадании по ней мяча;',
+            '- 3 дополнительные жизни;',
+            '- 3 дополнительных мяча;',
+            '- переход на следующий уровень;',
+            '- ускорение мячей;',
+            '- замедление мячей.',
+            '']
+
+    screen = pygame.display.set_mode(SIZE)
+
+    # menu ABOUT
+    about_theme = pygame_menu.themes.THEME_DARK.copy()
+    about_theme.widget_margin = (0, 0)
+    about_menu = pygame_menu.Menu(
+        height=HEIGHT * 0.6,
+        theme=about_theme,
+        title='About',
+        width=WIDTH * 0.6)
+
+    for m in ABOUT:
+        about_menu.add.label(m, align=pygame_menu.locals.ALIGN_LEFT, font_size=20)
+    about_menu.add.vertical_margin(30)
+    about_menu.add.button('Return to menu', pygame_menu.events.BACK)
+
+    # menu HELP
+    help_theme = pygame_menu.themes.THEME_DARK.copy()
+    help_theme.widget_margin = (0, 0)
+    help_menu = pygame_menu.Menu(
+        height=HEIGHT * 0.9,
+        theme=help_theme,
+        title='Help',
+        width=WIDTH * 0.7)
+    for m in HELP:
+        help_menu.add.label(m, align=pygame_menu.locals.ALIGN_LEFT, font_size=20)
+    help_menu.add.vertical_margin(30)
+    help_menu.add.button('Return to menu', pygame_menu.events.BACK)
+
+    # menu scores
+    # TODO: придумать как хранить лидеров
+    scores_theme = pygame_menu.themes.THEME_DARK
+    scores_theme.widget_margin = (0, 0)
+    scores_menu = pygame_menu.Menu(
+        height=HEIGHT * 0.9,
+        theme=scores_theme,
+        title='High scores',
+        width=WIDTH * 0.7)
+    for m in HELP:
+        scores_menu.add.label(m, align=pygame_menu.locals.ALIGN_LEFT, font_size=20)
+    scores_menu.add.vertical_margin(30)
+    scores_menu.add.button('Return to menu', pygame_menu.events.BACK)
+
+    menu = pygame_menu.Menu(height=HEIGHT,
+                            width=WIDTH,
+                            title='ARCANOID',
+                            theme=pygame_menu.themes.THEME_DARK)
+
+    menu.add.button('Play', start_the_game)
+    menu.add.text_input('Name: ', default='Vasya Pupkin')
+    menu.add.selector('Difficulty:', [('Hard', 1), ('Easy', 2), ('Cheats', 3)], onchange=set_difficulty)
+    menu.add.button('High scores', scores_menu)
+    menu.add.button('Help', help_menu)
+    menu.add.button('About', about_menu)
+    menu.add.button('Quit', pygame_menu.events.EXIT)
+
+    menu.mainloop(screen)
+
+
+def start_the_game():
     screen = pygame.display.set_mode(SIZE)
     world = World(screen)
-
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                menu_start()
                 pygame.quit()
                 return
             if event.type == pygame.KEYDOWN:
@@ -570,4 +664,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    menu_start()
+    # main()
