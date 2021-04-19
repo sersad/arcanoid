@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 from random import randint, choice
+from typing import List
 
 import pygame
 import pygame.gfxdraw
@@ -34,19 +35,22 @@ BROWN = pygame.Color("brown")
 MAGENTA = pygame.Color("magenta")
 MAGENTA4 = pygame.Color("magenta4")
 AQUAMARINE = pygame.Color('aquamarine')
-DEEPSKYBLUUE = pygame.Color('deepskyblue')
+DEEPSKYBLUE = pygame.Color('deepskyblue')
 DARKORANGE = pygame.Color('darkorange')
+DARKGREEN = pygame.Color('darkgreen')
 ORANGE = pygame.Color('orange')
 GRAY = pygame.Color("gray")
 DARKGRAY = pygame.Color("darkgray")
 
 BRICK_COLORS = {1: (WHITE, GRAY),
-                2: (GREEN, DEEPSKYBLUUE),
+                2: (GREEN, DEEPSKYBLUE),
                 3: (YELLOW, DARKORANGE),
                 4: (RED, MAGENTA),
                 5: (DARKORANGE, AQUAMARINE)}
 
 BALL_COLORS = YELLOW
+
+user_name = 'Vasya Pupkin'
 
 pygame.init()
 pygame.font.init()
@@ -277,7 +281,7 @@ class World:
 
     def game_over(self) -> None:
         """
-        TODO: Надо написать
+        TODO: Надо написать на экране GAME OVER и замереть на несколько секунд
         Конец игры
         :return:
         """
@@ -553,11 +557,43 @@ class Bonus(Brick):
 
 # MENU
 
+def high_scores(level: int = 1, scores: int = 0, name: str = user_name) -> List[tuple]:
+    """
+    TODO: придумать как хранить лидеров
+    Записывает результаты игры если scores попали в топ 10 и возвращает топ 10
+    :param level:
+    :param scores:
+    :param name:
+    :return:
+    """
+    result = [('user_name', 99, 99999),
+              ('user_name2', 9, 9999),
+              ('user_name3', 2, 999),
+              ('user_name4', 1, 99),
+              ('user_name5', 1, 99),
+              ('user_name6', 1, 99),
+              ('user_name7', 1, 99),
+              ('user_name8', 1, 99),
+              ('user_name9', 1, 99),
+              ('user_name10', 1, 99),
+              ]
+    return result
+
 
 def set_difficulty(value, difficulty):
-    print(value, difficulty)
-    # Do the job here !
-    pass
+    logging.warning(f'set_difficulty {value}')
+    global IDDQD
+    if difficulty == 3:
+        IDDQD = True
+        logging.basicConfig(level=logging.WARNING)
+    else:
+        IDDQD = False
+        logging.basicConfig(level=logging.ERROR)
+
+
+def change_name(value):
+    global user_name
+    user_name = value
 
 
 def menu_start(score: int = 0, level: int = 1) -> None:
@@ -567,12 +603,16 @@ def menu_start(score: int = 0, level: int = 1) -> None:
     :param level: int
     :return:
     """
+    logging.warning(f'score = {score} level = {level} name = {user_name}')
+    scores = high_scores(scores=score, level=level)
+
     ABOUT = ['pygame project от преподавателя Яндекс Лицея',
              'Author: Lord Voldemort (нельзя себя называть, увы)',
              'Email: _____ почта тоже в секрете']
 
-    HELP = ['Управление кнопками вправо и влево',
-            'Пауза клавиша <p>',
+    HELP = ['Управление кнопками вправо и влево. Пауза клавиша <p>',
+            'Скорость мяча меняется при столкновении с движущейся ракеткой',
+            '',
             'В игре 6 типов бонусов:',
             '- защитная стена снизу с 10 жизнями, ',
             '  жизнь стены уменьшается при попадании по ней мяча;',
@@ -580,8 +620,7 @@ def menu_start(score: int = 0, level: int = 1) -> None:
             '- 3 дополнительных мяча;',
             '- переход на следующий уровень;',
             '- ускорение мячей;',
-            '- замедление мячей.',
-            '']
+            '- замедление мячей.']
 
     screen = pygame.display.set_mode(SIZE)
 
@@ -595,7 +634,7 @@ def menu_start(score: int = 0, level: int = 1) -> None:
         width=WIDTH * 0.6)
 
     for m in ABOUT:
-        about_menu.add.label(m, align=pygame_menu.locals.ALIGN_LEFT, font_size=20)
+        about_menu.add.label(m, align=pygame_menu.locals.ALIGN_CENTER, font_size=20)
     about_menu.add.vertical_margin(30)
     about_menu.add.button('Return to menu', pygame_menu.events.BACK)
 
@@ -608,12 +647,11 @@ def menu_start(score: int = 0, level: int = 1) -> None:
         title='Help',
         width=WIDTH * 0.7)
     for m in HELP:
-        help_menu.add.label(m, align=pygame_menu.locals.ALIGN_LEFT, font_size=20)
+        help_menu.add.label(m, margin=(30, 0), align=pygame_menu.locals.ALIGN_LEFT, font_size=20)
     help_menu.add.vertical_margin(30)
     help_menu.add.button('Return to menu', pygame_menu.events.BACK)
 
     # menu scores
-    # TODO: придумать как хранить лидеров
     scores_theme = pygame_menu.themes.THEME_DARK
     scores_theme.widget_margin = (0, 0)
     scores_menu = pygame_menu.Menu(
@@ -621,8 +659,21 @@ def menu_start(score: int = 0, level: int = 1) -> None:
         theme=scores_theme,
         title='High scores',
         width=WIDTH * 0.7)
-    for m in HELP:
-        scores_menu.add.label(m, align=pygame_menu.locals.ALIGN_LEFT, font_size=20)
+
+    scores_menu.add._horizontal_margin(300)
+    scores_menu.add.label(f'##       SCORES       LEVEL     NAME',
+                          align=pygame_menu.locals.ALIGN_LEFT,
+                          font_size=28,
+                          font_color=DEEPSKYBLUE,
+                          margin=(100, 0)
+                          )
+    for n, m in enumerate(scores, 1):
+        scores_menu.add.label(f'{n:02d} - {m[2]:012d} - {m[1]:02d} - {m[0]}',
+                              align=pygame_menu.locals.ALIGN_LEFT,
+                              font_size=28,
+                              font_color={1: RED, 2: DARKORANGE, 3: DARKGREEN}.get(n, DARKGRAY),
+                              margin=(100, 0)
+                              )
     scores_menu.add.vertical_margin(30)
     scores_menu.add.button('Return to menu', pygame_menu.events.BACK)
 
@@ -632,8 +683,8 @@ def menu_start(score: int = 0, level: int = 1) -> None:
                             theme=pygame_menu.themes.THEME_DARK)
 
     menu.add.button('Play', start_the_game)
-    menu.add.text_input('Name: ', default='Vasya Pupkin')
-    menu.add.selector('Difficulty:', [('Hard', 1), ('Easy', 2), ('Cheats', 3)], onchange=set_difficulty)
+    menu.add.text_input('Name: ', default='Vasya Pupkin', onchange=change_name)
+    menu.add.selector('Difficulty: ', [('Normal', 1), ('Cheats', 3)], onchange=set_difficulty)
     menu.add.button('High scores', scores_menu)
     menu.add.button('Help', help_menu)
     menu.add.button('About', about_menu)
