@@ -2,9 +2,10 @@
 import asyncio
 import logging
 import os
+import pickle
 import sys
 from random import randint, choice
-from typing import List
+from typing import List, Any
 
 import pygame
 import pygame.gfxdraw
@@ -499,14 +500,14 @@ class Ball:
     def update(self, ticks):
         self.prev_pos = self.position[:]
 
-        if self.position[0] < self.radius or self.position[0] >= (WIDTH - self.radius):
+        if self.position[0] < self.radius + 1 or self.position[0] >= (WIDTH - self.radius + 1):
             self.speed[0] *= -1
 
-        if self.position[1] < self.radius:
+        if self.position[1] < self.radius + 1:
             self.speed[1] *= -1
 
         for i in (0, 1):
-            self.position[i] += self.speed[i] * ticks / 1000
+            self.position[i] += int(self.speed[i] * ticks / 1000)
 
 
 class Bonus(Brick):
@@ -558,26 +559,41 @@ class Bonus(Brick):
 
 # MENU
 
-def high_scores(level: int = 1, scores: int = 0, name: str = user_name) -> List[tuple]:
+def change_name(value):
     """
-    TODO: придумать как хранить лидеров
-    Записывает результаты игры если scores попали в топ 10 и возвращает топ 10
-    :param level:
-    :param scores:
-    :param name:
+    Меняем глобальное имя пользователя
+    :param value:
     :return:
     """
-    result = [('user_name', 99, 99999),
-              ('user_name2', 9, 9999),
-              ('user_name3', 2, 999),
-              ('user_name4', 1, 99),
-              ('user_name5', 1, 99),
-              ('user_name6', 1, 99),
-              ('user_name7', 1, 99),
-              ('user_name8', 1, 99),
-              ('user_name9', 1, 99),
-              ('user_name10', 1, 99),
-              ]
+    global user_name
+    user_name = value
+
+
+def high_scores(level: int = 1, scores: int = 0, name: str = user_name) -> List[tuple]:
+    """
+    Записывает результаты игры если scores попали в топ 10 и возвращает топ 10
+    Для читеров не пишется результат
+    :param level: int
+    :param scores: int
+    :param name: str
+    :return: List[tuple]
+    """
+    file = '.records.pickle'
+    if not os.path.isfile(file):
+        with open('.records.pickle', 'wb') as f:
+            pickle.dump([('__________', 0, 0000000)] * 10, f)
+
+    with open(file, 'rb') as f:
+        result = pickle.load(f)
+        # для читеров рекорды не пишем ;)
+        if IDDQD:
+            return result
+        if scores:
+            result.append((name, level, scores))
+        result.sort(key=lambda x: (-x[2], -x[1]))
+    result = result[:10]
+    with open('.records.pickle', 'wb') as f:
+        pickle.dump(result, f)
     return result
 
 
@@ -592,9 +608,25 @@ def set_difficulty(value, difficulty):
         logging.basicConfig(level=logging.ERROR)
 
 
-def change_name(value):
-    global user_name
-    user_name = value
+def set_sound_volume(value: Any, volume: float) -> None:
+    """
+    PyGame mixer не поддерживает глобальной громкости для звуков, поэтому нужно каждый звук регулировать отдельно.
+    Костыль, понимаю, но других вариантов нет, кроме создания отдельного инстанса со звуками и его переборки в цикле.
+    :param value: Any
+    :param volume: float
+    :return: None
+    """
+    global sound_handle, sound_brick_dead, sound_spawn, sound_brick_no_dead
+    global sound_game_over, sound_game_start, sound_next_level, sound_get_bonus, sound_lost_bonus
+    sound_handle.set_volume(volume)
+    sound_brick_dead.set_volume(volume)
+    sound_spawn.set_volume(volume)
+    sound_brick_no_dead.set_volume(volume)
+    sound_game_over.set_volume(volume)
+    sound_game_start.set_volume(volume)
+    sound_next_level.set_volume(volume)
+    sound_get_bonus.set_volume(volume)
+    sound_lost_bonus.set_volume(volume)
 
 
 def menu_start(score: int = 0, level: int = 1) -> None:
@@ -602,10 +634,10 @@ def menu_start(score: int = 0, level: int = 1) -> None:
     стартовое меню игры
     :param score: int
     :param level: int
-    :return:
+    :return: None
     """
     logging.warning(f'score = {score} level = {level} name = {user_name}')
-    scores = high_scores(scores=score, level=level)
+    scores = high_scores(scores=score, level=level, name=user_name)
 
     ABOUT = ['pygame project от преподавателя Яндекс Лицея',
              'Author: Lord Voldemort (нельзя себя называть, увы)',
@@ -656,7 +688,7 @@ def menu_start(score: int = 0, level: int = 1) -> None:
     help_menu.add.vertical_margin(30)
     help_menu.add.button('Return to menu', pygame_menu.events.BACK)
 
-    # menu scores
+    # menu SCORES
     scores_theme = pygame_menu.themes.THEME_DARK
     scores_theme.widget_margin = (0, 0)
     scores_menu = pygame_menu.Menu(
@@ -667,7 +699,6 @@ def menu_start(score: int = 0, level: int = 1) -> None:
         mouse_enabled = False
     )
 
-    scores_menu.add._horizontal_margin(300)
     scores_menu.add.label(f'##       SCORES       LEVEL     NAME',
                           align=pygame_menu.locals.ALIGN_LEFT,
                           font_size=28,
@@ -684,6 +715,7 @@ def menu_start(score: int = 0, level: int = 1) -> None:
     scores_menu.add.vertical_margin(30)
     scores_menu.add.button('Return to menu', pygame_menu.events.BACK)
 
+    # main MENU
     menu = pygame_menu.Menu(height=HEIGHT,
                             width=WIDTH,
                             title='ARCANOID',
@@ -692,17 +724,21 @@ def menu_start(score: int = 0, level: int = 1) -> None:
                             )
 
     menu.add.button('Play', start_the_game)
-    menu.add.text_input('Name: ', default='Vasya Pupkin', onchange=change_name)
-    menu.add.selector('Difficulty: ', [('Normal', 1), ('Cheats', 3)], onchange=set_difficulty)
+    menu.add.text_input('Name: ', default=user_name, onchange=change_name)
+    menu.add.selector('Difficulty: ', [('Easy', 1), ('Cheats', 3)], onchange=set_difficulty)
+    menu.add.selector('Volume: ', [(f'{i}%', i / 100) for i in range(0, 101, 10)], default=5, onchange=set_sound_volume)
     menu.add.button('High scores', scores_menu)
     menu.add.button('Help', help_menu)
     menu.add.button('About', about_menu)
     menu.add.button('Quit', pygame_menu.events.EXIT)
-
     menu.mainloop(screen)
 
 
-def start_the_game():
+def start_the_game() -> None:
+    """
+    Запускает игровой цикл, по выходу из игры запускает меню
+    :return: None
+    """
     screen = pygame.display.set_mode(SIZE)
     world = World(screen)
     while True:
@@ -715,7 +751,11 @@ def start_the_game():
                 if pygame.key.get_pressed()[K_p]:
                     world.start = not world.start
                     logging.warning('game toggle start')
-
+                if pygame.key.get_pressed()[K_ESCAPE] or pygame.key.get_pressed()[K_q]:
+                    logging.warning('game exit by keys')
+                    menu_start()
+                    pygame.quit()
+                    return
         screen.fill(BLACK)
         world.update()
         world.draw()
