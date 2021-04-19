@@ -60,9 +60,6 @@ sound_next_level = pygame.mixer.Sound('sound/Arkanoid SFX (9).wav')
 sound_get_bonus = pygame.mixer.Sound('sound/Arkanoid SFX (8).wav')
 sound_lost_bonus = pygame.mixer.Sound('sound/Arkanoid SFX (3).wav')
 
-# pygame.mixer.music.load('sound/02_-_Arkanoid_-_ARC_-_Game_Start.ogg')
-# pygame.mixer.music.play()
-
 ioloop = asyncio.get_event_loop()
 
 
@@ -98,6 +95,7 @@ class World:
         self.bricks = []
         self.balls = []
         self.bonuses = []
+        self.start = False
         self.handle = Handle((WIDTH // 2 - HANDLE_SIZE[0] // 2, HEIGHT - HANDLE_SIZE[1] - 40))
         self.spawn_ball()
         self.map_generator()
@@ -178,6 +176,8 @@ class World:
 
     def update(self) -> None:
         time = self.clock.get_time()
+        if not self.start:
+            return
         # обновляем ракетку
         self.handle.update(time)
         # обновляем мячи
@@ -269,7 +269,7 @@ class World:
         :return:
         """
         position = self.handle.position[:]
-        position[0] += randint(15, 45)
+        position[0] += HANDLE_SIZE[0] // 2 + randint(-40, 40)
         position[1] -= 5
         self.balls.append(Ball(position))
         sound_spawn.play()
@@ -467,10 +467,10 @@ class Handle(Brick):
 
     def update(self, ticks):
         if pygame.key.get_pressed()[K_RIGHT] and self.position[0] < WIDTH - HANDLE_SIZE[0]:
-            self.position[0] += int(500 * ticks / 1000)
+            self.position[0] += int(600 * ticks / 1000)
 
         if pygame.key.get_pressed()[K_LEFT] and self.position[0] >= 0:
-            self.position[0] -= int(500 * ticks / 1000)
+            self.position[0] -= int(600 * ticks / 1000)
 
 
 class Ball:
@@ -557,6 +557,10 @@ def main():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
+            if event.type == pygame.KEYDOWN:
+                if pygame.key.get_pressed()[K_p]:
+                    world.start = not world.start
+                    logging.warning('game toggle start')
 
         screen.fill(BLACK)
         world.update()
