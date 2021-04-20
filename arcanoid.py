@@ -5,6 +5,7 @@ import os
 import pickle
 import sys
 from random import randint, choice
+from time import sleep
 from typing import List, Any
 
 import pygame
@@ -22,7 +23,7 @@ BRICK_SIZE = 40, 20
 HANDLE_SIZE = 160, 10
 BALL_RADIUS = 5
 BALL_SPEED = 300
-LIVES = 5
+LIVES = 1
 
 # https://github.com/pygame/pygame/blob/main/src_py/colordict.py
 WHITE = pygame.Color("white")
@@ -54,24 +55,26 @@ BALL_COLORS = YELLOW
 user_name = 'Vasya Pupkin'
 
 pygame.init()
+pygame.display.set_caption('ARCANOID')
 pygame.font.init()
 
-# TODO: Не запускается на компьютерах без звука!
-sound_handle = pygame.mixer.Sound('sound/Arkanoid SFX (2).wav')
-sound_brick_dead = pygame.mixer.Sound('sound/Arkanoid SFX (1).wav')
-sound_spawn = pygame.mixer.Sound('sound/Arkanoid SFX (4).wav')
-sound_brick_no_dead = pygame.mixer.Sound('sound/Arkanoid SFX (7).wav')
-sound_game_over = pygame.mixer.Sound('sound/05_-_Arkanoid_-_ARC_-_Game_Over.ogg')
-sound_game_start = pygame.mixer.Sound('sound/02_-_Arkanoid_-_ARC_-_Game_Start.ogg')
-sound_next_level = pygame.mixer.Sound('sound/Arkanoid SFX (9).wav')
-sound_get_bonus = pygame.mixer.Sound('sound/Arkanoid SFX (8).wav')
-sound_lost_bonus = pygame.mixer.Sound('sound/Arkanoid SFX (3).wav')
-
+# для асинхронной отрисовки эффектов
 ioloop = asyncio.get_event_loop()
 
 
+def sound_load(sound_path: str = 'resource/sound') -> dict:
+    # TODO: Не запускается на компьютерах без звука! Надеюсь таких не будет.
+    """Загружает словарь звуков"""
+    sound_files = [f for f in os.listdir(sound_path) if os.path.isfile(os.path.join(sound_path, f))]
+    return {file_name.split('.')[0]: pygame.mixer.Sound(os.path.join(sound_path, file_name)) for file_name in sound_files}
+
+
+# чтоб не мучатся с пробросом звуков делаем глобально
+sounds = sound_load()
+
+
 def load_image(name: str, colorkey=None):
-    fullname = os.path.join('data', name)
+    fullname = os.path.join('resource', 'img', name)
     #  если файл не существует, то выходим
     if not os.path.isfile(fullname):
         print(f"Файл с изображением '{fullname}' не найден")
@@ -80,7 +83,7 @@ def load_image(name: str, colorkey=None):
     if colorkey is not None:
         image = image.convert()
         if colorkey == -1:
-            colorkey = image.get_at((0, 0))
+            colorkey = image.get_at((1, 1))
         image.set_colorkey(colorkey)
     else:
         image = image.convert_alpha()
@@ -93,7 +96,7 @@ class World:
     """
 
     def __init__(self, screen) -> None:
-        sound_game_start.play()
+        sounds['sound_game_start'].play()
         self.screen = screen
         self.clock = pygame.time.Clock()
         self.lives = LIVES
@@ -104,6 +107,7 @@ class World:
         self.bonuses = []
         self.start = True
         self.handle = Handle((WIDTH // 2 - HANDLE_SIZE[0] // 2, HEIGHT - HANDLE_SIZE[1] - 40))
+        self.over = None
         self.spawn_ball()
         self.map_generator()
         self.bonus = {0: lambda x=1: x,
@@ -156,6 +160,8 @@ class World:
             bonus.draw(self.screen)
 
         self.text_draw()
+        if self.over:
+            self.over.draw(self.screen)
 
     def text_draw(self) -> None:
         """
@@ -185,6 +191,10 @@ class World:
         time = self.clock.get_time()
         if not self.start:
             return
+
+        if self.over:
+            self.over.update(time)
+
         # обновляем ракетку
         self.handle.update(time)
         # обновляем мячи
@@ -201,7 +211,7 @@ class World:
         for bonus in self.bonuses:
             if bonus.position[1] > HEIGHT:
                 self.bonuses.remove(bonus)
-                sound_lost_bonus.play()
+                sounds['sound_lost_bonus'].play()
                 logging.warning(f'bonus remove bonus id = {bonus.bonus_id}')
 
         # если все мячи кончились то -1 жизнь и добавляем мяч
@@ -222,20 +232,20 @@ class World:
                     brick.lives -= 1
                     wait_tasks = asyncio.wait([ioloop.create_task(brick.draw_destroy(self.screen))])
                     if brick.lives < 1:
-                        sound_brick_dead.play()
+                        sounds['sound_brick_dead'].play()
                         ioloop.run_until_complete(wait_tasks)
                         # если кирпич с бонусом то добавляем бонус
                         if brick.bonus:
                             self.bonuses.append(Bonus(brick.bonus, position=brick.position))
                         break
-                    sound_brick_no_dead.play()
+                    sounds['sound_brick_no_dead'].play()
                     ioloop.run_until_complete(wait_tasks)
             else:
                 new_bricks.append(brick)
         # если кирпичи кончились генерируем новую карту и делаем новый уровень
         if not new_bricks or (len(new_bricks) <= 1 and any(True for brick in self.bricks if brick.w_size == WIDTH)):
             self.level += 1
-            sound_next_level.play()
+            sounds['sound_next_level'].play()
             # если была стенка перегенерируем её снова
             if any(True for brick in self.bricks if brick.w_size == WIDTH):
                 self.map_generator()
@@ -246,11 +256,12 @@ class World:
             logging.warning(f'No bricks - next level {self.level}')
         else:
             self.bricks = new_bricks
+
         # проверяем столкновение мячей с ракеткой, если во время движения то меняем скорости мячей
         for ball in self.balls:
             if self.handle.is_inside(ball.position):
                 self.handle.check_collision(ball)
-                sound_handle.play()
+                sounds['sound_handle'].play()
                 if pygame.key.get_pressed()[K_RIGHT]:
                     ball.speed[0] += 50
 
@@ -264,7 +275,7 @@ class World:
                 self.bonus[bonus.bonus_id]()
                 wait_tasks = asyncio.wait([ioloop.create_task(bonus.draw_destroy(self.screen))])
                 ioloop.run_until_complete(wait_tasks)
-                sound_get_bonus.play()
+                sounds['sound_get_bonus'].play()
                 self.bonuses.remove(bonus)
 
     def tick(self):
@@ -275,11 +286,12 @@ class World:
         Добавления мяча
         :return:
         """
-        position = self.handle.position[:]
-        position[0] += HANDLE_SIZE[0] // 2 + randint(-40, 40)
-        position[1] -= 5
-        self.balls.append(Ball(position))
-        sound_spawn.play()
+        if not self.over:
+            position = self.handle.position[:]
+            position[0] += HANDLE_SIZE[0] // 2 + randint(-40, 40)
+            position[1] -= 5
+            self.balls.append(Ball(position))
+            sounds['sound_spawn'].play()
 
     def game_over(self) -> None:
         """
@@ -287,9 +299,9 @@ class World:
         Конец игры
         :return:
         """
-        sound_game_over.play()
+        sounds['sound_game_over'].play()
         logging.error('game over')
-        menu_start(score=self.score, level=self.level)
+        self.over = Gameover(self.score, self.level)
 
     def bonus_add_wall(self, lives=10):
         """
@@ -362,7 +374,7 @@ class World:
         """
         self.score += 20000
         self.level += 1
-        sound_next_level.play()
+        sounds['sound_next_level'].play()
         logging.warning(f'bonus_next_level level = {self.level}')
         if any(True for brick in self.bricks if brick.w_size == WIDTH):
             self.map_generator()
@@ -557,11 +569,31 @@ class Bonus(Brick):
         self.position[1] += int(self.speed * ticks / 1000)
 
 
+class Gameover:
+    def __init__(self, score, level):
+        self.image = load_image("over.png", colorkey=-1)
+        self.rect = self.image.get_rect()
+        self.rect.x = -WIDTH
+        self.rect.y = HEIGHT // 2
+        self.score = score
+        self.level = level
+
+    def draw(self, screen):
+        screen.blit(self.image, (self.rect.x, self.rect.y))
+
+    def update(self, time):
+        if self.rect.x >= WIDTH // 2 - self.rect[2] // 2:
+            sleep(3)
+            menu_start(score=self.score, level=self.level)
+        else:
+            self.rect.x += 1 * time
+
+
 # MENU
 
 def change_name(value):
     """
-    Меняем глобальное имя пользователя
+    Меняем глобальное имя пользователя, опять же чтоб не мучаться с пробром имени между меню и игрой.
     :param value:
     :return:
     """
@@ -578,9 +610,9 @@ def high_scores(level: int = 1, scores: int = 0, name: str = user_name) -> List[
     :param name: str
     :return: List[tuple]
     """
-    file = '.records.pickle'
+    file = 'resource/.records.pickle'
     if not os.path.isfile(file):
-        with open('.records.pickle', 'wb') as f:
+        with open(file, 'wb') as f:
             pickle.dump([('__________', 0, 0000000)] * 10, f)
 
     with open(file, 'rb') as f:
@@ -592,12 +624,18 @@ def high_scores(level: int = 1, scores: int = 0, name: str = user_name) -> List[
             result.append((name, level, scores))
         result.sort(key=lambda x: (-x[2], -x[1]))
     result = result[:10]
-    with open('.records.pickle', 'wb') as f:
+    with open(file, 'wb') as f:
         pickle.dump(result, f)
     return result
 
 
 def set_difficulty(value, difficulty):
+    """
+    Задаем уровень сложности если уровень читерский то включем небольшую отладку в консоль
+    :param value:
+    :param difficulty:
+    :return:
+    """
     logging.warning(f'set_difficulty {value}')
     global IDDQD
     if difficulty == 3:
@@ -610,23 +648,16 @@ def set_difficulty(value, difficulty):
 
 def set_sound_volume(value: Any, volume: float) -> None:
     """
-    PyGame mixer не поддерживает глобальной громкости для звуков, поэтому нужно каждый звук регулировать отдельно.
-    Костыль, понимаю, но других вариантов нет, кроме создания отдельного инстанса со звуками и его переборки в цикле.
+    PyGame mixer не поддерживает глобальной громкости для звуков,
+    поэтому нужно каждый звук регулировать отдельно.
+    Пробегаем по инстансу звуков и выставляем громкость
     :param value: Any
     :param volume: float
     :return: None
     """
-    global sound_handle, sound_brick_dead, sound_spawn, sound_brick_no_dead
-    global sound_game_over, sound_game_start, sound_next_level, sound_get_bonus, sound_lost_bonus
-    sound_handle.set_volume(volume)
-    sound_brick_dead.set_volume(volume)
-    sound_spawn.set_volume(volume)
-    sound_brick_no_dead.set_volume(volume)
-    sound_game_over.set_volume(volume)
-    sound_game_start.set_volume(volume)
-    sound_next_level.set_volume(volume)
-    sound_get_bonus.set_volume(volume)
-    sound_lost_bonus.set_volume(volume)
+    for k, v in sounds.items():
+        print(k, v)
+        sounds[k].set_volume(volume)
 
 
 def menu_start(score: int = 0, level: int = 1) -> None:
@@ -722,6 +753,9 @@ def menu_start(score: int = 0, level: int = 1) -> None:
                             theme=pygame_menu.themes.THEME_DARK,
                             mouse_enabled=False
                             )
+    # img = os.path.join(os.path.dirname(pygame_menu.__file__), 'sound', 'logo.png')
+    img = os.path.join('resource', 'img', 'logo.png')
+    menu.add.image(img, scale=(0.6, 0.6), scale_smooth=True)
 
     menu.add.button('Play', start_the_game)
     menu.add.text_input('Name: ', default=user_name, onchange=change_name)
