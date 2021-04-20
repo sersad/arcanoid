@@ -511,10 +511,10 @@ class Ball:
     def update(self, ticks):
         self.prev_pos = self.position[:]
 
-        if self.position[0] < self.radius + 1 or self.position[0] >= (WIDTH - self.radius + 1):
+        if self.position[0] <= self.radius or self.position[0] >= (WIDTH - self.radius):
             self.speed[0] *= -1
 
-        if self.position[1] < self.radius + 1:
+        if self.position[1] <= self.radius:
             self.speed[1] *= -1
 
         for i in (0, 1):
