@@ -148,22 +148,30 @@ class World:
                           lives=lives))
 
     def draw(self) -> None:
-        self.handle.draw(self.screen)
+        """
+        Рисуем мир, чтоб не было лагов делаем это асинхронно
+        :return:
+        """
+        tasks = [self.handle.draw(self.screen)]
 
         for brick in self.bricks:
-            brick.draw(self.screen)
+            tasks.append(ioloop.create_task(brick.draw(self.screen)))
 
         for ball in self.balls:
-            ball.draw(self.screen)
+            tasks.append(ioloop.create_task(ball.draw(self.screen)))
 
         for bonus in self.bonuses:
-            bonus.draw(self.screen)
+            tasks.append(ioloop.create_task(bonus.draw(self.screen)))
 
-        self.text_draw()
+        tasks.append(ioloop.create_task(self.text_draw()))
+
         if self.over:
-            self.over.draw(self.screen)
+            tasks.append(ioloop.create_task(self.over.draw(self.screen)))
 
-    def text_draw(self) -> None:
+        wait_tasks = asyncio.wait(tasks)
+        ioloop.run_until_complete(wait_tasks)
+
+    async def text_draw(self) -> None:
         """
         Рисование жизней, очков и уровня на экране.
         Жизней больше 20 не рисует, но считает
@@ -300,7 +308,7 @@ class World:
         """
         sounds['sound_game_over'].play()
         logging.warning('game over')
-        self.over = Gameover(self.score, self.level)
+        self.over = GameOver(self.score, self.level)
 
     def bonus_add_wall(self, lives=10):
         """
@@ -387,6 +395,7 @@ class World:
 class Brick:
     """
     Класс блоков
+    В блоке может быть надомный бонус
     """
     w_size = BRICK_SIZE[0]
     h_size = BRICK_SIZE[1]
@@ -411,7 +420,7 @@ class Brick:
         self.bonus = choice(rnd_bonus)
         # logging.warning(f'brick bonus {self.bonus}')
 
-    def draw(self, screen: pygame.Surface) -> None:
+    async def draw(self, screen: pygame.Surface) -> None:
         """
         Рисование блока с градиентной заливкой и тенью.
         Рисуем Surface 2x2, пару линий в нем и растягиваем его до размеров блока.
@@ -445,6 +454,8 @@ class Brick:
                                                    (self.w_size + 20, self.h_size + 20)), self.color[1])
             pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), BLUE)
         # await sleep(0.1)
+
+    # логика проверки взаимодействий
 
     def is_inside_hbounds(self, x):
         left_bound = self.position[0] - BALL_RADIUS
@@ -505,7 +516,7 @@ class Ball:
         self.prev_pos = self.position
         self.radius = BALL_RADIUS
 
-    def draw(self, screen):
+    async def draw(self, screen):
         pygame.gfxdraw.filled_circle(screen, int(self.position[0]), int(self.position[1]), self.radius, self.color)
 
     def update(self, ticks):
@@ -524,6 +535,7 @@ class Ball:
 class Bonus(Brick):
     """
     Класс падающего бонуса
+    В зависимости от типа рисуется по разному.
     """
 
     def __init__(self, bonus_id, position=None):
@@ -534,7 +546,7 @@ class Bonus(Brick):
         self.bonus_id = bonus_id
         self.prev_pos = self.position
 
-    def draw(self, screen: pygame.Surface) -> None:
+    async def draw(self, screen: pygame.Surface) -> None:
         my_font = pygame.font.SysFont('Arial', 20)
         x, y = self.position
         if self.bonus_id == 1:
@@ -568,7 +580,10 @@ class Bonus(Brick):
         self.position[1] += int(self.speed * ticks / 1000)
 
 
-class Gameover:
+class GameOver:
+    """
+    Рисует выплывающий GameOver
+    """
     def __init__(self, score, level):
         self.image = load_image("over.png", colorkey=-1)
         self.rect = self.image.get_rect()
@@ -577,7 +592,7 @@ class Gameover:
         self.score = score
         self.level = level
 
-    def draw(self, screen):
+    async def draw(self, screen):
         screen.blit(self.image, (self.rect.x, self.rect.y))
 
     def update(self, time):
