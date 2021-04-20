@@ -300,7 +300,7 @@ class World:
         :return:
         """
         sounds['sound_game_over'].play()
-        logging.error('game over')
+        logging.warning('game over')
         self.over = Gameover(self.score, self.level)
 
     def bonus_add_wall(self, lives=10):
