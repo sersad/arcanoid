@@ -39,15 +39,15 @@ ____
 
 * Проект написан на `pygame 2` с использованием языка `Python 3.9`
   
-* Для меню используется библиотека `pygame-menu 4`, из-за проблем совместимости в Windows и старых версиях библиотек, работа мышки отключена в меню. 
+* Для меню используется библиотека `pygame-menu 4`, из-за проблем совместимости в Windows в старых версиях библиотек, работа мышки отключена в меню. 
 
-* Конфиг усилителя вынесен в `conf.ini` для того чтобы показать работу с подобными файлами и библиотекой configparser
+
 
 ____
 [:arrow_up:Оглавление](#Оглавление)
 
 ## Видео работы приложения
 
-[![Watch the video](https://img.youtube.com/vi/nIcF7Em2hGw/maxresdefault.jpg)](https://youtu.be/nIcF7Em2hGw)
+[![Watch the video](https://img.youtube.com/vi/8OsAKaevQtY/maxresdefault.jpg)](https://www.youtube.com/watch?v=8OsAKaevQtY)
 ____
 [:arrow_up:Оглавление](#Оглавление)
