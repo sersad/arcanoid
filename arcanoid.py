@@ -295,7 +295,6 @@ class World:
 
     def game_over(self) -> None:
         """
-        TODO: Надо написать на экране GAME OVER и замереть на несколько секунд
         Конец игры
         :return:
         """
