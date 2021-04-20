@@ -13,7 +13,7 @@ import pygame.gfxdraw
 import pygame_menu
 from pygame.locals import *
 
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.ERROR)
 
 # Пасхалочка
 IDDQD = False
@@ -23,7 +23,7 @@ BRICK_SIZE = 40, 20
 HANDLE_SIZE = 160, 10
 BALL_RADIUS = 5
 BALL_SPEED = 300
-LIVES = 1
+LIVES = 5
 
 # https://github.com/pygame/pygame/blob/main/src_py/colordict.py
 WHITE = pygame.Color("white")
@@ -656,7 +656,6 @@ def set_sound_volume(value: Any, volume: float) -> None:
     :return: None
     """
     for k, v in sounds.items():
-        print(k, v)
         sounds[k].set_volume(volume)
 
 
