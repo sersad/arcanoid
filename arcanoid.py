@@ -21,6 +21,7 @@ IDDQD = False
 SIZE = WIDTH, HEIGHT = 1024, 768
 BRICK_SIZE = 40, 20
 HANDLE_SIZE = 160, 10
+HANDLE_BONUS_TIME = 20000
 BALL_RADIUS = 5
 BALL_SPEED = 300
 LIVES = 5
@@ -48,7 +49,7 @@ BRICK_COLORS = {1: (WHITE, GRAY),
                 2: (GREEN, DEEPSKYBLUE),
                 3: (YELLOW, DARKORANGE),
                 4: (RED, MAGENTA),
-                5: (DARKORANGE, AQUAMARINE)}
+                5: (BLUE, YELLOW)}
 
 BALL_COLORS = YELLOW
 
@@ -100,7 +101,7 @@ class World:
         self.screen = screen
         self.clock = pygame.time.Clock()
         self.lives = LIVES
-        self.level = 1
+        self.level = 5
         self.score = 0
         self.bricks = []
         self.balls = []
@@ -117,11 +118,13 @@ class World:
                       4: self.bonus_next_level,
                       5: self.bonus_balls_increase_speed,
                       6: self.bonus_balls_decrease_speed,
+                      7: self.bonus_handle_decrease,
+                      8: self.bonus_handle_increase,
                       }
         # Ну вы поняли :)
         if IDDQD:
-            for i in range(1, 7):
-                self.bonuses.append(Bonus(bonus_id=i, position=(150 * i, 100)))
+            for i in range(1, 9):
+                self.bonuses.append(Bonus(bonus_id=i, position=(100 * i, 100)))
             self.bonus_add_balls()
             self.bonus_add_balls()
             self.bonus_balls_increase_speed()
@@ -178,13 +181,14 @@ class World:
         Если есть нижняя стенка то рисуем её жизни
         :return:
         """
-        my_font = pygame.font.SysFont('Comic Sans MS', 14)
+        # my_font = pygame.font.SysFont('Comic Sans MS', 14)
+        my_font = pygame.font.Font(os.path.join('resource', 'fonts', 'iomanoid.ttf'), 24)
         lives_surface = my_font.render('LIVES:', False, MAGENTA4)
         score_surface = my_font.render(f'SCORE: {self.score:012d}', False, MAGENTA4)
         level_surface = my_font.render(f'LEVEL: {self.level:02d}', False, MAGENTA4)
 
-        self.screen.blit(lives_surface, (WIDTH - 500, 5))
-        self.screen.blit(score_surface, (WIDTH - 200, 5))
+        self.screen.blit(lives_surface, (WIDTH - 620, 5))
+        self.screen.blit(score_surface, (WIDTH - 265, 5))
         self.screen.blit(level_surface, (10, 5))
         # жизни нижней стенки
         if any(True for brick in self.bricks if brick.w_size == WIDTH):
@@ -193,7 +197,7 @@ class World:
             self.screen.blit(wall_surface, (200, 5))
 
         for i in range(self.lives if self.lives < 21 else 20):
-            pygame.gfxdraw.filled_circle(self.screen, WIDTH - (440 - i * 12), 15, 4, DARKORANGE)
+            pygame.gfxdraw.filled_circle(self.screen, WIDTH - (540 - i * 12), 23, 4, DARKORANGE)
 
     def update(self) -> None:
         time = self.clock.get_time()
@@ -379,7 +383,7 @@ class World:
         Бонус переход на сл уровень
         :return:
         """
-        self.score += 20000
+        self.score += 50000
         self.level += 1
         sounds['sound_next_level'].play()
         logging.warning(f'bonus_next_level level = {self.level}')
@@ -391,16 +395,37 @@ class World:
             self.map_generator()
             logging.warning(f'bonus_next_level with NO WALL')
 
+    def bonus_handle_decrease(self) -> None:
+        """
+        Бонус уменьшения ракетки
+        :return:
+        """
+        self.score += 20000
+        self.handle.bonus_time += HANDLE_BONUS_TIME
+        if self.handle.w_size > HANDLE_SIZE[0] // 1.7:
+            self.handle.w_size = int(self.handle.w_size / 1.3)
+        logging.warning(f'bonus_handle_decrease')
+
+    def bonus_handle_increase(self) -> None:
+        """
+        Бонус увеличения ракетки
+        :return:
+        """
+        self.score += 20000
+        self.handle.bonus_time += HANDLE_BONUS_TIME
+        if self.handle.w_size < HANDLE_SIZE[0] * 2:
+            self.handle.w_size = int(self.handle.w_size * 1.3)
+        logging.warning(f'bonus_handle_increase = {self.level}')
+
 
 class Brick:
     """
     Класс блоков
     В блоке может быть надомный бонус
     """
-    w_size = BRICK_SIZE[0]
-    h_size = BRICK_SIZE[1]
-
     def __init__(self, position=None, lives=1):
+        self.w_size = BRICK_SIZE[0]
+        self.h_size = BRICK_SIZE[1]
         self.position = list(position)
         self.lives = lives
         self.color = BRICK_COLORS.get(lives, BRICK_COLORS[1])
@@ -417,6 +442,10 @@ class Brick:
         rnd_bonus.extend([5] * 2)
         # bonus_balls_decrease_speed
         rnd_bonus.extend([6] * 2)
+        # bonus_handle_decrease
+        rnd_bonus.extend([7] * 4)
+        # bonus_handle_increase
+        rnd_bonus.extend([8] * 4)
         self.bonus = choice(rnd_bonus)
         # logging.warning(f'brick bonus {self.bonus}')
 
@@ -488,15 +517,23 @@ class Handle(Brick):
     """
     Класс ракетки, в целом это тоже что и обычный блок и отличается одним методом
     """
-    w_size = HANDLE_SIZE[0]
-    h_size = HANDLE_SIZE[1]
-
     def __init__(self, position=None, lives=1):
         super(Handle, self).__init__(position, lives)
         self.bonus = 0
+        self.w_size = HANDLE_SIZE[0]
+        self.h_size = HANDLE_SIZE[1]
+        self.bonus_time = HANDLE_BONUS_TIME
 
     def update(self, ticks):
-        if pygame.key.get_pressed()[K_RIGHT] and self.position[0] < WIDTH - HANDLE_SIZE[0]:
+        if self.bonus_time > 0:
+            self.bonus_time -= ticks
+        if self.bonus_time < 0:
+            logging.warning('handle bonus timeout')
+            self.w_size = HANDLE_SIZE[0]
+            self.h_size = HANDLE_SIZE[1]
+            self.bonus_time = 0
+
+        if pygame.key.get_pressed()[K_RIGHT] and self.position[0] < WIDTH - self.w_size:
             self.position[0] += int(600 * ticks / 1000)
 
         if pygame.key.get_pressed()[K_LEFT] and self.position[0] >= 0:
@@ -522,14 +559,21 @@ class Ball:
     def update(self, ticks):
         self.prev_pos = self.position[:]
 
+        for i in (0, 1):
+            self.position[i] += self.speed[i] * ticks / 1000
+
+        self.position[0] = max(self.position[0], self.radius)
+        self.position[0] = min(self.position[0], WIDTH - self.radius)
+        self.position[1] = max(self.position[1], self.radius)
+
         if self.position[0] <= self.radius or self.position[0] >= (WIDTH - self.radius):
             self.speed[0] *= -1
 
         if self.position[1] <= self.radius:
             self.speed[1] *= -1
 
-        for i in (0, 1):
-            self.position[i] += int(self.speed[i] * ticks / 1000)
+
+
 
 
 class Bonus(Brick):
@@ -547,7 +591,8 @@ class Bonus(Brick):
         self.prev_pos = self.position
 
     async def draw(self, screen: pygame.Surface) -> None:
-        my_font = pygame.font.SysFont('Arial', 20)
+        # my_font = pygame.font.SysFont('Arial', 20)
+        my_font = pygame.font.Font(os.path.join('resource', 'fonts', 'iomanoid.ttf'), 20)
         x, y = self.position
         if self.bonus_id == 1:
             # bonus_add_wall
@@ -564,20 +609,41 @@ class Bonus(Brick):
             pygame.gfxdraw.filled_circle(screen, x - BALL_RADIUS * 2, y + BALL_RADIUS * 2, BALL_RADIUS + 2, GREEN)
         elif self.bonus_id == 4:
             # bonus_next_level
-            surface = my_font.render('NEXT LEVEL', True, DARKORANGE)
+            surface = my_font.render('NEXT', True, DARKORANGE)
             screen.blit(surface, (x, y))
         elif self.bonus_id == 5:
-            # bonus_balls_increase_speed
-            surface = my_font.render('SPEED ↑', True, DARKORANGE)
+            # bonus_balls_increase_speed ↑
+            surface = my_font.render('SPEED UP', True, DARKORANGE)
             screen.blit(surface, (x, y))
         elif self.bonus_id == 6:
-            # bonus_balls_decrease_speed
-            surface = my_font.render('SPEED ↓', True, DARKORANGE)
+            # bonus_balls_decrease_speed ↓
+            surface = my_font.render('SPEED DOWN', True, DARKORANGE)
             screen.blit(surface, (x, y))
+        elif self.bonus_id == 7:
+            # bonus_handle_decrease →→  ←←
+            surface = my_font.render('→→  ←←', True, DARKORANGE)
+            screen.blit(surface, (x, y))
+        elif self.bonus_id == 8:
+            # bonus_handle_increase ←←  →→
+            # surface = my_font.render('←←  →→', True, DARKORANGE)
+            # screen.blit(surface, (x, y))
+            pygame.gfxdraw.filled_circle(screen, x + BALL_RADIUS * 2, y + BALL_RADIUS * 2, BALL_RADIUS + 2, BLUE)
+            pygame.gfxdraw.filled_circle(screen, x, y, BALL_RADIUS + 2, ORANGE)
+            pygame.gfxdraw.filled_circle(screen, x - BALL_RADIUS * 2, y + BALL_RADIUS * 2, BALL_RADIUS + 2, GREEN)
 
     def update(self, ticks):
         self.prev_pos = self.position[:]
         self.position[1] += int(self.speed * ticks / 1000)
+
+    def is_inside_hbounds(self, x):
+        left_bound = self.position[0] - 40
+        right_bound = self.position[0] + self.w_size + 40
+        return left_bound <= x <= right_bound
+
+    def is_inside_vbounds(self, y):
+        up_bound = self.position[1] - 40
+        down_bound = self.position[1] + self.h_size + 40
+        return up_bound <= y <= down_bound
 
 
 class GameOver:
@@ -690,14 +756,15 @@ def menu_start(score: int = 0, level: int = 1) -> None:
     HELP = ['Управление кнопками вправо и влево. Пауза клавиша <p>',
             'Скорость мяча меняется при столкновении с движущейся ракеткой',
             '',
-            'В игре 6 типов бонусов:',
+            'В игре 8 типов бонусов:',
             '- защитная стена снизу с 10 жизнями, ',
             '  жизнь стены уменьшается при попадании по ней мяча;',
             '- 3 дополнительные жизни;',
             '- 3 дополнительных мяча;',
             '- переход на следующий уровень;',
             '- ускорение мячей;',
-            '- замедление мячей.']
+            '- замедление мячей;'
+            '- увеличение и уменьшение ракетки.']
 
     screen = pygame.display.set_mode(SIZE)
 
