@@ -15,9 +15,6 @@ from pygame.locals import *
 
 logging.basicConfig(level=logging.ERROR)
 
-# Пасхалочка
-IDDQD = False
-
 SIZE = WIDTH, HEIGHT = 1024, 768
 BRICK_SIZE = 40, 20
 HANDLE_SIZE = 160, 10
@@ -55,6 +52,9 @@ BALL_COLORS = YELLOW
 
 user_name = 'Vasya Pupkin'
 
+# Пасхалочка включается в меню
+IDDQD = False
+
 pygame.init()
 pygame.display.set_caption('ARCANOID')
 pygame.font.init()
@@ -67,7 +67,8 @@ def sound_load(sound_path: str = 'resource/sound') -> dict:
     # TODO: Не запускается на компьютерах без звука! Надеюсь таких не будет.
     """Загружает словарь звуков"""
     sound_files = [f for f in os.listdir(sound_path) if os.path.isfile(os.path.join(sound_path, f))]
-    return {file_name.split('.')[0]: pygame.mixer.Sound(os.path.join(sound_path, file_name)) for file_name in sound_files}
+    return {file_name.split('.')[0]: pygame.mixer.Sound(os.path.join(sound_path, file_name)) for file_name in
+            sound_files}
 
 
 # чтоб не мучатся с пробросом звуков делаем глобально
@@ -95,13 +96,12 @@ class World:
     """
     Основное игровое поле
     """
-
     def __init__(self, screen) -> None:
         sounds['sound_game_start'].play()
         self.screen = screen
         self.clock = pygame.time.Clock()
         self.lives = LIVES
-        self.level = 5
+        self.level = 1
         self.score = 0
         self.bricks = []
         self.balls = []
@@ -124,7 +124,7 @@ class World:
         # Ну вы поняли :)
         if IDDQD:
             for i in range(1, 9):
-                self.bonuses.append(Bonus(bonus_id=i, position=(100 * i, 100)))
+                self.bonuses.append(Bonus(bonus_id=i, position=(100 * i, 10)))
             self.bonus_add_balls()
             self.bonus_add_balls()
             self.bonus_balls_increase_speed()
@@ -152,8 +152,10 @@ class World:
 
     def draw(self) -> None:
         """
-        Рисуем мир, чтоб не было лагов делаем это асинхронно
-        :return:
+        Асинхронное рисование мира.
+        Сначала создаем задачи на рисование и дальше запускаем асинхнорнное выполнение.
+        Убирает возможные лаги
+        :return: None
         """
         tasks = [self.handle.draw(self.screen)]
 
@@ -176,12 +178,11 @@ class World:
 
     async def text_draw(self) -> None:
         """
-        Рисование жизней, очков и уровня на экране.
+        Асинхронное Рисование жизней, очков и уровня на экране.
         Жизней больше 20 не рисует, но считает
         Если есть нижняя стенка то рисуем её жизни
         :return:
         """
-        # my_font = pygame.font.SysFont('Comic Sans MS', 14)
         my_font = pygame.font.Font(os.path.join('resource', 'fonts', 'iomanoid.ttf'), 24)
         lives_surface = my_font.render('LIVES:', False, MAGENTA4)
         score_surface = my_font.render(f'SCORE: {self.score:012d}', False, MAGENTA4)
@@ -200,6 +201,10 @@ class World:
             pygame.gfxdraw.filled_circle(self.screen, WIDTH - (540 - i * 12), 23, 4, DARKORANGE)
 
     def update(self) -> None:
+        """
+        Основной процесс обновления и отслеживания взаимодействий
+        :return: None
+        """
         time = self.clock.get_time()
         if not self.start:
             return
@@ -282,7 +287,7 @@ class World:
 
         # проверяем столкновение бонуса с ракеткой если оно произошло то дергаем бонус и бонус удаляем
         for bonus in self.bonuses:
-            if self.handle.is_inside(bonus.position):
+            if bonus.is_inside(self.handle.position, self.handle.w_size):
                 logging.warning(f'handle get bonus id = {bonus.bonus_id}')
                 self.bonus[bonus.bonus_id]()
                 wait_tasks = asyncio.wait([ioloop.create_task(bonus.draw_destroy(self.screen))])
@@ -290,12 +295,12 @@ class World:
                 sounds['sound_get_bonus'].play()
                 self.bonuses.remove(bonus)
 
-    def tick(self):
+    def tick(self) -> None:
         self.clock.tick(60)
 
     def spawn_ball(self):
         """
-        Добавления мяча
+        Добавления мяча c небольшим рандомом размещения на ракетке
         :return:
         """
         if not self.over:
@@ -314,7 +319,7 @@ class World:
         logging.warning('game over')
         self.over = GameOver(self.score, self.level)
 
-    def bonus_add_wall(self, lives=10):
+    def bonus_add_wall(self, lives: int = 10) -> None:
         """
         Бонус добавляем нижнюю стенку с 10 жизнями
         :return:
@@ -421,8 +426,9 @@ class World:
 class Brick:
     """
     Класс блоков
-    В блоке может быть надомный бонус
+    В блоке может быть рандомный бонус
     """
+
     def __init__(self, position=None, lives=1):
         self.w_size = BRICK_SIZE[0]
         self.h_size = BRICK_SIZE[1]
@@ -439,13 +445,13 @@ class Brick:
         # bonus_next_level
         rnd_bonus.extend([4])
         # bonus_balls_increase_speed
-        rnd_bonus.extend([5] * 2)
+        rnd_bonus.extend([5] * 1)
         # bonus_balls_decrease_speed
-        rnd_bonus.extend([6] * 2)
+        rnd_bonus.extend([6] * 1)
         # bonus_handle_decrease
-        rnd_bonus.extend([7] * 4)
+        rnd_bonus.extend([7] * 2)
         # bonus_handle_increase
-        rnd_bonus.extend([8] * 4)
+        rnd_bonus.extend([8] * 2)
         self.bonus = choice(rnd_bonus)
         # logging.warning(f'brick bonus {self.bonus}')
 
@@ -454,7 +460,7 @@ class Brick:
         Рисование блока с градиентной заливкой и тенью.
         Рисуем Surface 2x2, пару линий в нем и растягиваем его до размеров блока.
         :param screen:
-        :return:
+        :return: None
         """
         self.color = BRICK_COLORS.get(self.lives, BRICK_COLORS[1])
         pygame.gfxdraw.box(screen, pygame.Rect((self.position[0] + 1, self.position[1] + 1),
@@ -482,31 +488,31 @@ class Brick:
             pygame.gfxdraw.box(screen, pygame.Rect((self.position[0] - 10, self.position[1] - 10),
                                                    (self.w_size + 20, self.h_size + 20)), self.color[1])
             pygame.gfxdraw.box(screen, pygame.Rect(self.position, (self.w_size, self.h_size)), BLUE)
-        # await sleep(0.1)
 
-    # логика проверки взаимодействий
-
-    def is_inside_hbounds(self, x):
+    # логика проверки взаимодействий мяча и блока,
+    # разный отскок в зависимости от попадания мяча
+    # в вертикальную часть или горизонтальную часть блока
+    def is_inside_hbounds(self, x: int) -> None:
         left_bound = self.position[0] - BALL_RADIUS
         right_bound = self.position[0] + self.w_size + BALL_RADIUS
         return left_bound <= x <= right_bound
 
-    def is_inside_vbounds(self, y):
+    def is_inside_vbounds(self, y: int) -> None:
         up_bound = self.position[1] - BALL_RADIUS
         down_bound = self.position[1] + self.h_size + BALL_RADIUS
         return up_bound <= y <= down_bound
 
-    def is_inside(self, position):
+    def is_inside(self, position: list, handle_w_size: int = None) -> bool:
         x, y = position
-        return self.is_inside_hbounds(x) and self.is_inside_vbounds(y)
+        return bool(self.is_inside_hbounds(x) and self.is_inside_vbounds(y))
 
-    def is_h_collide(self, x1, x2):
+    def is_h_collide(self, x1: int, x2: int) -> bool:
         return not self.is_inside_hbounds(x1) and self.is_inside_hbounds(x2)
 
-    def is_v_collide(self, y1, y2):
+    def is_v_collide(self, y1: int, y2: int) -> bool:
         return not self.is_inside_vbounds(y1) and self.is_inside_vbounds(y2)
 
-    def check_collision(self, ball):
+    def check_collision(self, ball: Any) -> None:
         if self.is_h_collide(ball.prev_pos[0], ball.position[0]):
             ball.speed[0] *= -1
         if self.is_v_collide(ball.prev_pos[1], ball.position[1]):
@@ -524,7 +530,13 @@ class Handle(Brick):
         self.h_size = HANDLE_SIZE[1]
         self.bonus_time = HANDLE_BONUS_TIME
 
-    def update(self, ticks):
+    def update(self, ticks: int) -> None:
+        """
+        Изменение координат ракетки в зависимости от нажатых клавиш
+        Возврат размера ракетки по таймеру после бонусов изменения размера
+        :param ticks: int
+        :return: None
+        """
         if self.bonus_time > 0:
             self.bonus_time -= ticks
         if self.bonus_time < 0:
@@ -545,7 +557,6 @@ class Ball:
     Класс мяча
     Небольшой рандом в скоростях
     """
-
     def __init__(self, position, color=BALL_COLORS):
         self.position = list(position)
         self.color = color
@@ -553,15 +564,26 @@ class Ball:
         self.prev_pos = self.position
         self.radius = BALL_RADIUS
 
-    async def draw(self, screen):
+    async def draw(self, screen: pygame.Surface) -> None:
+        """
+        Асинхроноое рисование шара
+        :param screen:
+        :return:
+        """
         pygame.gfxdraw.filled_circle(screen, int(self.position[0]), int(self.position[1]), self.radius, self.color)
 
-    def update(self, ticks):
+    def update(self, ticks: int) -> None:
+        """
+        Меняем координаты шарика и если доходим до границ меняем скорость на обратную
+        :param ticks: int
+        :return: None
+        """
         self.prev_pos = self.position[:]
 
         for i in (0, 1):
             self.position[i] += self.speed[i] * ticks / 1000
 
+        # исправление возможной ошибки и залипание вдоль границ мира
         self.position[0] = max(self.position[0], self.radius)
         self.position[0] = min(self.position[0], WIDTH - self.radius)
         self.position[1] = max(self.position[1], self.radius)
@@ -573,30 +595,40 @@ class Ball:
             self.speed[1] *= -1
 
 
-
-
-
 class Bonus(Brick):
     """
     Класс падающего бонуса
     В зависимости от типа рисуется по разному.
     """
-
     def __init__(self, bonus_id, position=None):
         super(Bonus, self).__init__(position, lives=1)
+        self.w_size = BRICK_SIZE[0] * 2
         self.position = [int(position[0] + BRICK_SIZE[0] // 2), int(position[1] + BRICK_SIZE[1])]
         self.color = BRICK_COLORS[5]
         self.speed = 200
         self.bonus_id = bonus_id
         self.prev_pos = self.position
+        self.surface = pygame.Surface((self.w_size, self.h_size), pygame.SRCALPHA)
 
     async def draw(self, screen: pygame.Surface) -> None:
-        # my_font = pygame.font.SysFont('Arial', 20)
+        """
+        Асинхронное рисование бонусов
+        Тип рисование зависит от его id
+        :param screen: pygame.Surface
+        :return: None
+        """
         my_font = pygame.font.Font(os.path.join('resource', 'fonts', 'iomanoid.ttf'), 20)
         x, y = self.position
         if self.bonus_id == 1:
             # bonus_add_wall
-            pygame.gfxdraw.rectangle(screen, (x, y, 50, 10), DARKORANGE)
+            pygame.gfxdraw.filled_polygon(self.surface, [
+                (0, 0),
+                (self.w_size, 0),
+                (self.w_size, self.h_size // 2),
+                (0, self.h_size // 2),
+            ],
+                                          DARKORANGE)
+            screen.blit(self.surface, (x, y))
         elif self.bonus_id == 2:
             # bonus_add_lives
             pygame.gfxdraw.filled_circle(screen, x + BALL_RADIUS * 2 + 4, y, BALL_RADIUS + 2, DARKORANGE)
@@ -621,34 +653,70 @@ class Bonus(Brick):
             screen.blit(surface, (x, y))
         elif self.bonus_id == 7:
             # bonus_handle_decrease →→  ←←
-            surface = my_font.render('→→  ←←', True, DARKORANGE)
-            screen.blit(surface, (x, y))
+            pygame.gfxdraw.filled_polygon(self.surface, [
+                (self.h_size // 2, self.h_size // 2),
+                (0, 0),
+                (self.h_size // 2, self.h_size // 4),
+                (self.w_size - self.h_size // 2, self.h_size // 4),
+                (self.w_size, 0),
+                (self.w_size - self.h_size // 2, self.h_size // 2),
+                (self.w_size, self.h_size),
+                (self.w_size - self.h_size // 2, self.h_size - self.h_size // 4),
+                (self.h_size // 2, self.h_size - self.h_size // 4),
+                (0, self.h_size),
+            ],
+                                          DARKORANGE)
+            screen.blit(self.surface, (x, y))
         elif self.bonus_id == 8:
             # bonus_handle_increase ←←  →→
-            # surface = my_font.render('←←  →→', True, DARKORANGE)
-            # screen.blit(surface, (x, y))
-            pygame.gfxdraw.filled_circle(screen, x + BALL_RADIUS * 2, y + BALL_RADIUS * 2, BALL_RADIUS + 2, BLUE)
-            pygame.gfxdraw.filled_circle(screen, x, y, BALL_RADIUS + 2, ORANGE)
-            pygame.gfxdraw.filled_circle(screen, x - BALL_RADIUS * 2, y + BALL_RADIUS * 2, BALL_RADIUS + 2, GREEN)
+            pygame.gfxdraw.filled_polygon(self.surface, [
+                (0, self.h_size // 2),
+                (self.h_size // 2, 0),
+                (self.h_size // 2, self.h_size // 4),
+                (self.w_size - self.h_size // 2, self.h_size // 4),
+                (self.w_size - self.h_size // 2, 0),
+                (self.w_size, self.h_size // 2),
+                (self.w_size - self.h_size // 2, self.h_size),
+                (self.w_size - self.h_size // 2,
+                 self.h_size - self.h_size // 4),
+                (self.h_size // 2, self.h_size - self.h_size // 4),
+                (self.h_size // 2, self.h_size),
+            ],
+                                          DARKORANGE)
+            screen.blit(self.surface, (x, y))
 
-    def update(self, ticks):
+    def update(self, ticks: int) -> None:
+        """
+        Обновляем координаты и опускаем бонус
+        :param ticks: int
+        :return: None
+        """
         self.prev_pos = self.position[:]
         self.position[1] += int(self.speed * ticks / 1000)
 
-    def is_inside_hbounds(self, x):
-        left_bound = self.position[0] - 40
-        right_bound = self.position[0] + self.w_size + 40
-        return left_bound <= x <= right_bound
+    def is_inside(self, position: list, handle_w_size: int = None) -> bool:
+        """
+        Для отлавливания коллизии с делаем два прямоугольника
+        rect1 - handle
+        rect2 - падающий бонус
+        и методом colliderect ищем пересечение
+        :param position:
+        :param handle_w_size:
+        :return: boll
+        """
+        x, y = position
+        rect1 = pygame.Rect(x, y, handle_w_size, 10)
+        rect2 = pygame.Rect(self.position[0],
+                            self.position[1],
+                            self.w_size,
+                            self.h_size)
 
-    def is_inside_vbounds(self, y):
-        up_bound = self.position[1] - 40
-        down_bound = self.position[1] + self.h_size + 40
-        return up_bound <= y <= down_bound
+        return bool(rect1.colliderect(rect2))
 
 
 class GameOver:
     """
-    Рисует выплывающий GameOver
+    Рисует выплывающая картинка GameOver
     """
     def __init__(self, score, level):
         self.image = load_image("over.png", colorkey=-1)
@@ -658,10 +726,20 @@ class GameOver:
         self.score = score
         self.level = level
 
-    async def draw(self, screen):
+    async def draw(self, screen: pygame.Surface):
+        """
+        Асинхронное рисование
+        :param screen: pygame.Surface
+        :return: None
+        """
         screen.blit(self.image, (self.rect.x, self.rect.y))
 
-    def update(self, time):
+    def update(self, time: int) -> None:
+        """
+        Выплываем слева на право
+        :param time:
+        :return:
+        """
         if self.rect.x >= WIDTH // 2 - self.rect[2] // 2:
             sleep(3)
             menu_start(score=self.score, level=self.level)
@@ -807,7 +885,7 @@ def menu_start(score: int = 0, level: int = 1) -> None:
         theme=scores_theme,
         title='High scores',
         width=WIDTH * 0.7,
-        mouse_enabled = False
+        mouse_enabled=False
     )
 
     scores_menu.add.label(f'##       SCORES       LEVEL     NAME',
