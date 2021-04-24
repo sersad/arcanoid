@@ -435,7 +435,7 @@ class Brick:
         self.position = list(position)
         self.lives = lives
         self.color = BRICK_COLORS.get(lives, BRICK_COLORS[1])
-        rnd_bonus = [0] * 30
+        rnd_bonus = [0] * 40
         # bonus_add_wall
         rnd_bonus.extend([1] * 2)
         # bonus_add_lives
