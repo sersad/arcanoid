@@ -98,6 +98,6 @@ ____
 
 ## Видео работы приложения
 TODO: Старое, надо перезалить
-[![Watch the video](https://img.youtube.com/vi/8OsAKaevQtY/maxresdefault.jpg)](https://www.youtube.com/watch?v=8OsAKaevQtY)
+[![Watch the video](https://img.youtube.com/vi/FamAeMrPDIY/maxresdefault.jpg)](https://www.youtube.com/watch?v=FamAeMrPDIY)
 ____
 [:arrow_up:Оглавление](#Оглавление)
